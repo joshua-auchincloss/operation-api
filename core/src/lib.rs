@@ -1,3 +1,4 @@
+pub mod context;
 pub mod generate;
 pub mod namespace;
 pub mod ty;
@@ -40,8 +41,31 @@ pub trait Defined: Sized + Send + Sync {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("toml error: {0}")]
+    Toml(#[from] toml::de::Error),
+
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("yaml error: {0}")]
+    Yaml(#[from] serde_yaml::Error),
+
+    // internal
     #[error("{0}")]
     Generation(#[from] crate::generate::GenerationError),
+
+    #[error("{tag} {name} already exists in {ns}")]
+    NamespaceConflict {
+        name: Ident,
+        tag: &'static str,
+        ns: Ident,
+    },
+
+    #[error("{name} is not found in {ns}")]
+    NameNotFound { name: Ident, ns: Ident },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -82,11 +106,11 @@ mod test {
             namespace: namespace.clone(),
             version: 2,
             fields: FieldsList::new(map!({
-                a: Field::builder().ty(Type::I32).optional(false).namespace(None).build(),
-                b: Field::builder().ty(Type::F32).optional(true).namespace(None).build(),
+                a: Field::builder().ty(Type::I32).optional(false).namespace(None).name(None).build(),
+                b: Field::builder().ty(Type::F32).optional(true).namespace(None).name(None).build(),
                 c: Field::builder().ty(
                     ty!([[f32; 4]; 4])
-                ).optional(false).namespace(None).build(),
+                ).optional(false).namespace(None).name(None).build(),
                 d: FieldOrRef::Ref{
                     to: "c".into()
                 }
@@ -105,10 +129,10 @@ mod test {
                 .namespace("abc.corp.namespace".into())
                 .description("add a sequence of numbers together".into())
                 .inputs(FieldsList::new(map!({
-                    values: Field::builder().ty(ty!(Vec<u32>)).optional(false).namespace(None).build()
+                    values: Field::builder().ty(ty!(Vec<u32>)).optional(false).namespace(None).name(None).build()
                 })))
                 .outputs(FieldsList::new(map!({
-                    value: Field::builder().ty(ty!(u32)).optional(false).namespace(None).build()
+                    value: Field::builder().ty(ty!(u32)).optional(false).namespace(None).name(None).build()
                 })))
                 .build(),
         );

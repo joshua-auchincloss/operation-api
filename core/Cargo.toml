@@ -2,6 +2,8 @@
 name = "operation-api-core"
 edition.workspace = true
 version.workspace = true
+authors.workspace = true
+homepage.workspace = true
 
 [features]
 generate = []
@@ -13,14 +15,20 @@ bon.workspace = true
 inventory.workspace = true
 thiserror.workspace = true
 config = { workspace = true, features = ["yaml", "json", "toml"] }
+
 glob = "*"
-
-regex = "*"
-
-[dev-dependencies]
-tokio = { version = "*", features = ["full"] }
 toml = "*"
 serde_json = "*"
 serde_yaml = "*"
+
+tracing = { workspace = true, features = [] }
+tracing-subscriber = { workspace = true, features = [] }
+
+quote.workspace = true
+syn.workspace = true
+
+[dev-dependencies]
+tokio = { version = "*", features = ["full"] }
+
 
 insta = { workspace = true, features = ["yaml"] }

@@ -1,0 +1,261 @@
+---
+source: core/src/generate.rs
+expression: ctx.namespaces
+---
+{
+    Ident(
+        "abc.corp.namespace",
+    ): Namespace {
+        name: Ident(
+            "abc.corp.namespace",
+        ),
+        fields: {},
+        ops: {},
+        defs: {
+            Ident(
+                "some_struct",
+            ): Struct {
+                name: Ident(
+                    "some_struct",
+                ),
+                namespace: Ident(
+                    "abc.corp.namespace",
+                ),
+                description: None,
+                version: 2,
+                fields: FieldsList(
+                    {
+                        Ident(
+                            "a",
+                        ): Field(
+                            Field {
+                                name: None,
+                                namespace: None,
+                                ty: I32,
+                                description: None,
+                                optional: false,
+                            },
+                        ),
+                        Ident(
+                            "b",
+                        ): Field(
+                            Field {
+                                name: None,
+                                namespace: None,
+                                ty: F32,
+                                description: None,
+                                optional: true,
+                            },
+                        ),
+                        Ident(
+                            "c",
+                        ): Field(
+                            Field {
+                                name: None,
+                                namespace: None,
+                                ty: CompoundType(
+                                    SizedArray {
+                                        size: 4,
+                                        ty: CompoundType(
+                                            SizedArray {
+                                                size: 4,
+                                                ty: F32,
+                                            },
+                                        ),
+                                    },
+                                ),
+                                description: None,
+                                optional: false,
+                            },
+                        ),
+                        Ident(
+                            "d",
+                        ): Field(
+                            Field {
+                                name: None,
+                                namespace: None,
+                                ty: CompoundType(
+                                    SizedArray {
+                                        size: 4,
+                                        ty: CompoundType(
+                                            SizedArray {
+                                                size: 4,
+                                                ty: F32,
+                                            },
+                                        ),
+                                    },
+                                ),
+                                description: None,
+                                optional: false,
+                            },
+                        ),
+                    },
+                ),
+            },
+        },
+    },
+    Ident(
+        "abc.corp.test",
+    ): Namespace {
+        name: Ident(
+            "abc.corp.test",
+        ),
+        fields: {},
+        ops: {},
+        defs: {
+            Ident(
+                "BasicStruct",
+            ): Struct {
+                name: Ident(
+                    "BasicStruct",
+                ),
+                namespace: Ident(
+                    "abc.corp.test",
+                ),
+                description: Some(
+                    "Some struct",
+                ),
+                version: 1,
+                fields: FieldsList(
+                    {
+                        Ident(
+                            "a",
+                        ): Field(
+                            Field {
+                                name: Some(
+                                    Ident(
+                                        "a",
+                                    ),
+                                ),
+                                namespace: Some(
+                                    Ident(
+                                        "abc.corp.test",
+                                    ),
+                                ),
+                                ty: I32,
+                                description: Some(
+                                    "field a",
+                                ),
+                                optional: false,
+                            },
+                        ),
+                        Ident(
+                            "b",
+                        ): Field(
+                            Field {
+                                name: Some(
+                                    Ident(
+                                        "b",
+                                    ),
+                                ),
+                                namespace: Some(
+                                    Ident(
+                                        "abc.corp.test",
+                                    ),
+                                ),
+                                ty: CompoundType(
+                                    Option {
+                                        ty: I32,
+                                    },
+                                ),
+                                description: None,
+                                optional: false,
+                            },
+                        ),
+                        Ident(
+                            "c",
+                        ): Field(
+                            Field {
+                                name: Some(
+                                    Ident(
+                                        "c",
+                                    ),
+                                ),
+                                namespace: Some(
+                                    Ident(
+                                        "abc.corp.test",
+                                    ),
+                                ),
+                                ty: CompoundType(
+                                    Array {
+                                        ty: F32,
+                                    },
+                                ),
+                                description: None,
+                                optional: false,
+                            },
+                        ),
+                        Ident(
+                            "d",
+                        ): Field(
+                            Field {
+                                name: Some(
+                                    Ident(
+                                        "d",
+                                    ),
+                                ),
+                                namespace: Some(
+                                    Ident(
+                                        "abc.corp.test",
+                                    ),
+                                ),
+                                ty: CompoundType(
+                                    SizedArray {
+                                        size: 4,
+                                        ty: CompoundType(
+                                            SizedArray {
+                                                size: 4,
+                                                ty: F32,
+                                            },
+                                        ),
+                                    },
+                                ),
+                                description: None,
+                                optional: false,
+                            },
+                        ),
+                    },
+                ),
+            },
+            Ident(
+                "BasicStructWithReadme",
+            ): Struct {
+                name: Ident(
+                    "BasicStructWithReadme",
+                ),
+                namespace: Ident(
+                    "abc.corp.test",
+                ),
+                description: Some(
+                    "# test\nthis is a struct description\n",
+                ),
+                version: 1,
+                fields: FieldsList(
+                    {
+                        Ident(
+                            "a",
+                        ): Field(
+                            Field {
+                                name: Some(
+                                    Ident(
+                                        "a",
+                                    ),
+                                ),
+                                namespace: Some(
+                                    Ident(
+                                        "abc.corp.test",
+                                    ),
+                                ),
+                                ty: I32,
+                                description: Some(
+                                    "field a",
+                                ),
+                                optional: false,
+                            },
+                        ),
+                    },
+                ),
+            },
+        },
+    },
+}

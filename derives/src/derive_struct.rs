@@ -98,7 +98,7 @@ pub fn derive_struct(tokens: TokenStream) -> TokenStream {
     let fields = s.data.take_struct().unwrap().fields;
 
     let fields_map = quote!(
-        let mut m = std::collections::BTreeMap::<String, _>::new();
+        let mut m = std::collections::BTreeMap::<_, _>::new();
     );
 
     let parent_iden = s.ident.clone();

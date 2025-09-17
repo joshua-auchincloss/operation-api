@@ -9,7 +9,9 @@ use serde::Deserialize;
 
 use crate::{
     Definitions, Operation, Struct,
+    context::Context,
     generate::{remote::RemoteConfig, rust::RustGenerator},
+    namespace::WithNsContext,
 };
 
 #[derive(thiserror::Error, Debug)]
@@ -19,9 +21,6 @@ pub enum GenerationError {
 
     #[error("glob error: {0}")]
     Glob(#[from] glob::GlobError),
-
-    #[error("regex error: {0}")]
-    Regex(#[from] regex::Error),
 }
 
 type Result<T, E = GenerationError> = std::result::Result<T, E>;
@@ -104,29 +103,45 @@ impl GenerationConfig {
     }
 }
 
-pub trait Generate<Ext: ConfigExt> {
-    fn gen_operation(
+pub trait Generate<State, Ext: ConfigExt> {
+    fn new_state<'ns>(
         &self,
-        def: Operation,
-        opts: GenOpts<Ext>,
-    ) -> Result<()>;
-    fn gen_struct(
+        opts: &GenOpts<Ext>,
+    ) -> State;
+
+    fn gen_ctx<'ns>(
         &self,
-        def: Struct,
-        opts: GenOpts<Ext>,
-    ) -> Result<()>;
-    fn gen_definition(
-        &self,
-        def: Definitions,
-        opts: GenOpts<Ext>,
+        ctx: &'ns Context,
+        opts: &GenOpts<Ext>,
     ) -> Result<()> {
-        match def {
-            Definitions::OperationV1(def) => self.gen_operation(def, opts),
-            Definitions::StructV1(def) => self.gen_struct(def, opts),
-            // we can skip these as we dont have/use field aliases in generated code
-            Definitions::FieldV1(..) => Ok(()),
+        let mut state = self.new_state(opts);
+
+        for ns in ctx.namespaces.values() {
+            let mut ns_ctx = WithNsContext::new(ns, &mut state);
+
+            for def in ns.defs.values() {
+                self.gen_struct(&mut ns_ctx, def)?;
+            }
+
+            for op in ns.ops.values() {
+                self.gen_operation(&mut ns_ctx, op)?;
+            }
         }
+
+        Ok(())
     }
+
+    fn gen_operation<'ns>(
+        &self,
+        state: &mut WithNsContext<'ns, State>,
+        def: &Operation,
+    ) -> Result<()>;
+
+    fn gen_struct<'ns>(
+        &self,
+        state: &mut WithNsContext<'ns, State>,
+        def: &Struct,
+    ) -> Result<()>;
 }
 
 impl GenerationConfig {
@@ -134,16 +149,25 @@ impl GenerationConfig {
         matcher::walk(&self.sources)
     }
 
-    pub async fn generate_all(&self) -> Result<()> {
-        let files = self.sources()?;
+    pub fn get_ctx(&self) -> crate::Result<Context> {
+        let mut ctx = Context::new();
+
+        for source in self.sources()? {
+            ctx.load_from_source(source)?;
+        }
+
+        ctx.finish()?;
+
+        Ok(ctx)
+    }
+
+    pub async fn generate_all(&self) -> crate::Result<()> {
+        let ctx = self.get_ctx()?;
 
         let mut futs = vec![];
         if let Some(rust) = &self.rust {
             let generator = RustGenerator;
-            futs.push(Box::pin(async move {
-                // generator.gen_definition(def, rust.clone())
-                Ok::<_, GenerationError>(())
-            }));
+            futs.push(Box::pin(async move { generator.gen_ctx(&ctx, rust) }));
         }
 
         for fut in futs {
@@ -158,8 +182,8 @@ impl GenerationConfig {
 mod test {
     use super::*;
 
-    #[test]
-    fn test_config_loader() {
+    #[tokio::test]
+    async fn test_config_loader() {
         let conf = GenerationConfig::new(Some("../samples/config-a")).unwrap();
 
         assert_eq! {
@@ -175,6 +199,7 @@ mod test {
                     ],
                     include: vec![
                         "../samples/basic-op.toml".into(),
+                        "../samples/basic-struct.toml".into(),
                         "../samples/test-struct*.toml".into()
                     ],
                     exclude: vec![
@@ -191,9 +216,16 @@ mod test {
         assert_eq! {
             conf.sources().unwrap(),
             vec![
+                PathBuf::from("../samples/basic-struct.toml"),
                 PathBuf::from("../samples/test-struct-readme.toml"),
                 PathBuf::from("../samples/test-struct-text.toml"),
             ]
         }
+
+        let ctx = conf.get_ctx().unwrap();
+
+        insta::assert_debug_snapshot!(ctx.namespaces);
+
+        conf.generate_all().await.unwrap();
     }
 }

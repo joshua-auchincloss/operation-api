@@ -2,8 +2,12 @@
 edition = "2024"
 version = "0.1.0"
 
+homepage = "https://github.com/joshua-auchincloss/operation-api"
+authors = ["Joshua Auchincloss <joshua.auchincloss@proton.me>"]
+
+
 [workspace]
-members = ["sdk", "derives", "core"]
+members = ["sdk", "derives", "core", "cli"]
 resolver = "3"
 
 [workspace.dependencies]
@@ -27,3 +31,7 @@ config = "0.15"
 thiserror = "2"
 
 insta = "1.43.1"
+
+
+tracing = "0.1"
+tracing-subscriber = "0.3"

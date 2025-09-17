@@ -1,0 +1,22 @@
+[package]
+name = "operation-api-cli"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+
+[[bin]]
+name = "define"
+
+[dependencies]
+operation-api-core = { path = "../core", features = ["generate"] }
+operation-api-sdk = { path = "../sdk" }
+
+clap = { version = "*", features = ["derive", "env"] }
+
+tokio = { version = "*", features = ["full"] }
+
+human-panic = { version = "*", features = [] }
+
+tracing = { workspace = true, features = [] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }

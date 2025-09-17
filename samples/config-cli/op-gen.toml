@@ -3,9 +3,9 @@ targets = ["client", "server", "types"]
 
 [sources]
 include = [
-    "../samples/basic-op.toml",
-    "../samples/basic-struct.toml",
-    "../samples/test-struct*.toml",
+    "samples/basic-op.toml",
+    "samples/basic-struct.toml",
+    "samples/test-struct*.toml",
 ]
 exclude = ["*basic-op*"]
 
@@ -15,7 +15,7 @@ url = "http://localhost:9009/dynamic.toml"
 
 
 [rust]
-output-dir = "../samples/gen-a"
+output-dir = "samples/gen-a"
 
 
 [rust.opts]

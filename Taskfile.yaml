@@ -1,0 +1,5 @@
+version: "3"
+
+tasks:
+  gen:
+    cmd: cargo run -- gen -d samples/config-cli

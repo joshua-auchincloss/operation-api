@@ -19,9 +19,22 @@ pub fn walk(source: &Source) -> super::Result<Vec<PathBuf>> {
     Ok(found
         .into_iter()
         .filter(|it| {
-            !match_exp
+            let remove = !match_exp
                 .iter()
-                .any(|re| re.matches_path(&it))
+                .any(|re| re.matches_path(&it));
+
+            if remove {
+                tracing::info!(
+                    "removing '{}' from targets due to exclusion rule",
+                    it.display()
+                )
+            }
+
+            !remove
+        })
+        .map(|it| {
+            tracing::info!("including '{}' in targets", it.display());
+            it
         })
         .collect())
 }
