@@ -1,0 +1,17 @@
+languages = ["rust"]
+targets = ["client", "server", "types"]
+
+[sources]
+include = ["../samples/basic-op.toml", "../samples/test-struct*.toml"]
+exclude = ["*basic-op*"]
+
+
+[[sources.remote]]
+url = "http://localhost:9009/dynamic.toml"
+
+
+[rust]
+output-dir = "../samples/gen-a"
+
+
+[rust.opts]

@@ -1,0 +1,26 @@
+[package]
+name = "operation-api-core"
+edition.workspace = true
+version.workspace = true
+
+[features]
+generate = []
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+paste.workspace = true
+bon.workspace = true
+inventory.workspace = true
+thiserror.workspace = true
+config = { workspace = true, features = ["yaml", "json", "toml"] }
+glob = "*"
+
+regex = "*"
+
+[dev-dependencies]
+tokio = { version = "*", features = ["full"] }
+toml = "*"
+serde_json = "*"
+serde_yaml = "*"
+
+insta = { workspace = true, features = ["yaml"] }

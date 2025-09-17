@@ -1,0 +1,14 @@
+[package]
+name = "operation-api-sdk"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+operation-api-core = { path = "../core" }
+operation-api-derives = { path = "../derives" }
+
+[dev-dependencies]
+serde_json = "*"
+toml = "*"
+serde_yaml = "*"
+insta = { workspace = true, features = ["yaml"] }
