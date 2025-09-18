@@ -34,7 +34,7 @@ jobs:
 
     - name: Install cargo-insta
       run: | 
-        cargo binstall -y cargo-insta
+        cargo binstall -y --force cargo-insta
 
     - name: Cargo Test
       run: |
