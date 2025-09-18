@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, io::Write, path::PathBuf};
 use convert_case::Casing;
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
-use syn::{Ident, Lit, LitInt, token::Token};
+use syn::{Ident, Lit, LitInt};
 
 use crate::{
     Operation, Struct,
@@ -25,6 +25,7 @@ impl LanguageTrait for RustGenerator {
 pub(crate) struct RustGenState {}
 
 impl Generate<RustGenState, RustConfig> for RustGenerator {
+    #[allow(unused)]
     fn on_create<'s>(
         state: &WithNsContext<'s, RustGenState, RustConfig, Self>,
         fname: &PathBuf,
@@ -33,6 +34,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
         Ok(())
     }
 
+    #[allow(unused)]
     fn with_all_namespaces<'ns>(
         &self,
         ctx: &crate::context::Context,
@@ -55,6 +57,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
         Ok(())
     }
 
+    #[allow(unused)]
     fn new_state<'ns>(
         &'ns self,
         opts: &GenOpts<RustConfig>,
@@ -62,6 +65,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
         RustGenState {}
     }
 
+    #[allow(unused)]
     fn gen_operation<'ns>(
         &self,
         state: &WithNsContext<'ns, RustGenState, RustConfig, Self>,
@@ -77,6 +81,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
         Ok(())
     }
 
+    #[allow(unused)]
     fn gen_struct<'ns>(
         &self,
         state: &WithNsContext<'ns, RustGenState, RustConfig, Self>,

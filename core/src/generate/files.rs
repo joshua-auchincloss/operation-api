@@ -1,12 +1,11 @@
 use std::{io::Write, path::PathBuf};
 
-trait MaybeFile: std::io::Write {}
-
 pub struct File {
     f: std::fs::File,
 }
 
 pub struct Mem {
+    #[allow(unused)]
     fname: PathBuf,
     fdata: Vec<u8>,
 }
@@ -37,7 +36,7 @@ impl Write for FileOrMem {
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(match self {
             Self::File(f) => f.f.flush()?,
-            Self::Mem(m) => {},
+            Self::Mem(..) => {},
         })
     }
 

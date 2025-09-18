@@ -78,13 +78,6 @@ pub enum Type {
     CompoundType(CompoundType),
 }
 
-macro_rules! typemap {
-    (
-        $non_compound: expr,
-        $compound: expr
-    ) => {};
-}
-
 impl From<Field<Ident>> for Field<Option<Ident>> {
     fn from(value: Field<Ident>) -> Self {
         Self {
@@ -162,7 +155,6 @@ impl Type {
                             [#inner; #size]
                         )
                     },
-                    _ => todo!(),
                 }
             },
         }
