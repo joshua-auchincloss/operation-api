@@ -1,5 +1,7 @@
 version: "3"
 
 tasks:
-  gen:
-    cmd: cargo run -- gen -d samples/config-cli
+  gen-a:
+    cmds: 
+      - cargo run -- gen -d examples/gen-a
+      - cargo +nightly fmt

@@ -15,7 +15,7 @@ url = "http://localhost:9009/dynamic.toml"
 
 
 [rust]
-output-dir = "samples/gen-a"
+output-dir = "examples/gen-a/src/operations"
 
 
 [rust.opts]

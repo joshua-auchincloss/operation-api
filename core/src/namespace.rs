@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use crate::{Definitions, Field, FieldOrRef, Ident, Operation, Struct};
+use convert_case::Casing;
+
+use crate::{Definitions, Field, FieldOrRef, Ident, Operation, Struct, generate::LanguageTrait};
 
 pub trait OfNamespace {
     const NAMESPACE: &'static str;
@@ -120,6 +122,13 @@ impl Namespace {
         self.resolve_field_types()?;
         Ok(())
     }
+
+    pub fn normalized_path<L: LanguageTrait>(&self) -> String {
+        self.name
+            .to_string()
+            .replace(".", "_")
+            .to_case(L::file_case())
+    }
 }
 
 #[inline]
@@ -139,19 +148,5 @@ fn unique_ns_def<T>(
             })
         },
         None => Ok(()),
-    }
-}
-
-pub struct WithNsContext<'ns, T> {
-    ns: &'ns Namespace,
-    state: &'ns mut T,
-}
-
-impl<'ns, T> WithNsContext<'ns, T> {
-    pub fn new(
-        ns: &'ns Namespace,
-        state: &'ns mut T,
-    ) -> Self {
-        Self { ns, state }
     }
 }

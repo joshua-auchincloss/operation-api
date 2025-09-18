@@ -19,7 +19,7 @@ pub fn walk(source: &Source) -> super::Result<Vec<PathBuf>> {
     Ok(found
         .into_iter()
         .filter(|it| {
-            let remove = !match_exp
+            let remove = match_exp
                 .iter()
                 .any(|re| re.matches_path(&it));
 

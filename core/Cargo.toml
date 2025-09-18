@@ -24,6 +24,8 @@ serde_yaml = "*"
 tracing = { workspace = true, features = [] }
 tracing-subscriber = { workspace = true, features = [] }
 
+proc-macro2.workspace = true
+convert_case.workspace = true
 quote.workspace = true
 syn.workspace = true
 

@@ -1,0 +1,15 @@
+[package]
+name = "test-gen-a"
+edition.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+operation-api-core = { path = "../../core" }
+operation-api-sdk = { path = "../../sdk" }
+
+serde = "*"
+
+
+[dev-dependencies]
+toml.workspace = true

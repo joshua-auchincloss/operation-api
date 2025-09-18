@@ -709,10 +709,12 @@ version = "0.1.0"
 dependencies = [
  "bon",
  "config",
+ "convert_case 0.8.0",
  "glob",
  "insta",
  "inventory",
  "paste",
+ "proc-macro2",
  "quote",
  "serde",
  "serde_json",
@@ -1142,6 +1144,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "test-gen-a"
+version = "0.1.0"
+dependencies = [
+ "operation-api-core",
+ "operation-api-sdk",
+ "serde",
+ "toml",
 ]
 
 [[package]]

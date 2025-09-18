@@ -5,6 +5,8 @@ use std::{
     path::PathBuf,
 };
 
+use crate::generate::RustConfig;
+
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ident(String);
 
@@ -71,7 +73,16 @@ pub enum Type {
 
     String,
 
+    Binary,
+
     CompoundType(CompoundType),
+}
+
+macro_rules! typemap {
+    (
+        $non_compound: expr,
+        $compound: expr
+    ) => {};
 }
 
 impl From<Field<Ident>> for Field<Option<Ident>> {
@@ -102,6 +113,62 @@ pub struct Field<Ns> {
     pub optional: bool,
 }
 
+impl Type {
+    pub fn ty(
+        &self,
+        opts: &RustConfig,
+    ) -> proc_macro2::TokenStream {
+        match self {
+            Type::Complex => todo!(),
+
+            Type::Bool => quote::quote!(bool),
+
+            Type::I8 => quote::quote!(i8),
+            Type::I16 => quote::quote!(i8),
+            Type::I32 => quote::quote!(i32),
+            Type::I64 => quote::quote!(i64),
+
+            Type::U8 => quote::quote!(u8),
+            Type::U16 => quote::quote!(u8),
+            Type::U32 => quote::quote!(u32),
+            Type::U64 => quote::quote!(u64),
+
+            Type::F32 => quote::quote!(f32),
+            Type::F64 => quote::quote!(f64),
+
+            Type::Binary => quote::quote!(Vec<u8>),
+            Type::String => quote::quote!(String),
+
+            Type::DateTime => quote::quote!(chrono::DateTime::<chrono::Utc>),
+
+            Type::CompoundType(outer_ty) => {
+                match outer_ty {
+                    CompoundType::Array { ty } => {
+                        let inner = ty.ty(opts);
+                        quote::quote!(
+                            Vec<#inner>
+                        )
+                    },
+                    CompoundType::Option { ty } => {
+                        let inner = ty.ty(opts);
+                        quote::quote!(
+                            Option<#inner>
+                        )
+                    },
+                    CompoundType::SizedArray { size, ty } => {
+                        let inner = ty.ty(opts);
+                        let size = crate::generate::rust::lit(format!("{size}"));
+                        quote::quote!(
+                            [#inner; #size]
+                        )
+                    },
+                    _ => todo!(),
+                }
+            },
+        }
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
 #[serde(untagged)]
 pub enum FieldOrRef {
@@ -110,6 +177,15 @@ pub enum FieldOrRef {
         #[serde(rename = "ref")]
         to: Ident,
     },
+}
+
+impl FieldOrRef {
+    pub fn unwrap_field(&self) -> &Field<Option<Ident>> {
+        match self {
+            Self::Field(field) => field,
+            _ => panic!("expected field, got ref"),
+        }
+    }
 }
 
 impl From<Field<Option<Ident>>> for FieldOrRef {

@@ -1,17 +1,24 @@
+pub mod context;
+pub mod files;
 pub mod matcher;
 pub mod remote;
 pub mod rust;
 
-use std::{fmt::Debug, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    fmt::Debug,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use config::File;
 use serde::Deserialize;
 
 use crate::{
-    Definitions, Operation, Struct,
+    Operation, Struct,
     context::Context,
-    generate::{remote::RemoteConfig, rust::RustGenerator},
-    namespace::WithNsContext,
+    generate::{context::WithNsContext, remote::RemoteConfig, rust::RustGenerator},
 };
 
 #[derive(thiserror::Error, Debug)]
@@ -21,9 +28,21 @@ pub enum GenerationError {
 
     #[error("glob error: {0}")]
     Glob(#[from] glob::GlobError),
+
+    #[error("{0}")]
+    Io(#[from] std::io::Error),
 }
 
 type Result<T, E = GenerationError> = std::result::Result<T, E>;
+
+pub trait LanguageTrait {
+    fn file_case() -> convert_case::Case<'static>;
+    fn file_ext() -> &'static str;
+
+    fn file_name<P: AsRef<Path>>(name: P) -> PathBuf {
+        PathBuf::from(format!("{}.{}", name.as_ref().display(), Self::file_ext()))
+    }
+}
 
 #[derive(Deserialize, PartialEq, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -46,6 +65,9 @@ pub trait ConfigExt: Debug + PartialEq + Clone {}
 pub struct GenOpts<Ext: ConfigExt> {
     output_dir: PathBuf,
     opts: Ext,
+
+    #[serde(default = "crate::utils::default_no")]
+    mem: bool,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -103,44 +125,71 @@ impl GenerationConfig {
     }
 }
 
-pub trait Generate<State, Ext: ConfigExt> {
+pub trait Generate<State, Ext: ConfigExt>
+where
+    Self: LanguageTrait + Sized, {
+    fn on_create<'s>(
+        state: &WithNsContext<'s, State, Ext, Self>,
+        fname: &PathBuf,
+        f: &mut Box<dyn Write>,
+    ) -> std::io::Result<()>;
+
     fn new_state<'ns>(
         &self,
-        opts: &GenOpts<Ext>,
+        opts: &'ns GenOpts<Ext>,
     ) -> State;
+
+    #[allow(unused)]
+    fn with_all_namespaces<'ns>(
+        &self,
+        ctx: &Context,
+        opts: &'ns GenOpts<Ext>,
+        ctx_ns: BTreeMap<crate::Ident, WithNsContext<'ns, State, Ext, Self>>,
+    ) -> Result<()> {
+        Ok(())
+    }
 
     fn gen_ctx<'ns>(
         &self,
-        ctx: &'ns Context,
-        opts: &GenOpts<Ext>,
+        ctx: &Context,
+        opts: &'ns GenOpts<Ext>,
     ) -> Result<()> {
-        let mut state = self.new_state(opts);
-
+        let state = Arc::new(self.new_state(opts));
+        let mut ctx_ns = BTreeMap::new();
         for ns in ctx.namespaces.values() {
-            let mut ns_ctx = WithNsContext::new(ns, &mut state);
+            let ns_ctx = WithNsContext::new(
+                ns,
+                state.clone(),
+                opts,
+                Box::new(|state, fname, f| Self::on_create(state, fname, f)),
+            );
 
             for def in ns.defs.values() {
-                self.gen_struct(&mut ns_ctx, def)?;
+                self.gen_struct(&ns_ctx, def)?;
             }
 
             for op in ns.ops.values() {
-                self.gen_operation(&mut ns_ctx, op)?;
+                self.gen_operation(&ns_ctx, op)?;
             }
+
+            ctx_ns.insert(ns.name.clone(), ns_ctx);
         }
+
+        self.with_all_namespaces(ctx, opts, ctx_ns)?;
 
         Ok(())
     }
 
-    fn gen_operation<'ns>(
+    fn gen_struct<'s>(
         &self,
-        state: &mut WithNsContext<'ns, State>,
-        def: &Operation,
+        state: &WithNsContext<'s, State, Ext, Self>,
+        def: &Struct,
     ) -> Result<()>;
 
-    fn gen_struct<'ns>(
+    fn gen_operation<'s>(
         &self,
-        state: &mut WithNsContext<'ns, State>,
-        def: &Struct,
+        state: &WithNsContext<'s, State, Ext, Self>,
+        def: &Operation,
     ) -> Result<()>;
 }
 
@@ -208,7 +257,8 @@ mod test {
                 },
                 rust: Some(GenOpts{
                     output_dir: "../samples/gen-a".into(),
-                    opts: RustConfig {  }
+                    opts: RustConfig {  },
+                    mem: false
                 })
             }
         }
