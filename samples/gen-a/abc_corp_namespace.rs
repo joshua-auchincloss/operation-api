@@ -1,0 +1,1 @@
+# [derive (serde :: Serialize , serde :: Deserialize , operation_api_sdk :: Struct)] # [fields (version = 2)] pub struct SomeStruct { # [serde (rename = "a")] a : i32 , # [serde (rename = "b")] b : f32 , # [serde (rename = "c")] c : [[f32 ; 4] ; 4] , # [serde (rename = "d")] d : [[f32 ; 4] ; 4] , }operation_api_core :: namespace ! { "abc.corp.namespace" { SomeStruct , } }

@@ -274,7 +274,7 @@ mod test {
 
         let ctx = conf.get_ctx().unwrap();
 
-        insta::assert_debug_snapshot!(ctx.namespaces);
+        insta::assert_yaml_snapshot!(ctx.namespaces);
 
         conf.generate_all().await.unwrap();
     }
