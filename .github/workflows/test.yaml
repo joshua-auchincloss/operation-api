@@ -27,7 +27,7 @@ jobs:
 
     - uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        components: cargo
+        components: cargo fmt
 
     - name: Install cargo-binstall
       uses: cargo-bins/cargo-binstall@v1.15.5
