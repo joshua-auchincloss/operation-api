@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use operation_api_core::namespace;
 use operation_api_derives::Struct;
 use operation_api_sdk::Defined;
