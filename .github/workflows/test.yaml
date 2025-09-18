@@ -36,6 +36,13 @@ jobs:
       run: | 
         cargo binstall -y --force cargo-insta
 
+    - name: Install Task
+      uses: go-task/setup-task@v1
+
+    - name: Test Generation
+      run: |
+        task gen-a
+
     - name: Cargo Test
       run: |
         cargo insta test --all-features
