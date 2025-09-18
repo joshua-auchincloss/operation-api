@@ -41,7 +41,7 @@ jobs:
 
     - name: Test Generation
       run: |
-        task gen-a
+        cargo run -- gen -d examples/gen-a
 
     - name: Cargo Test
       run: |
