@@ -1,5 +1,52 @@
 ---
 source: examples/gen-a/tests/test_ser.rs
-expression: as_toml
+expression: def
 ---
-"type = \"struct@v1\"\nname = \"BasicStruct\"\nnamespace = \"abc.corp.test\"\ndescription = \"Some struct\"\nversion = 1\n\n[fields.a]\nname = \"a\"\nnamespace = \"abc.corp.test\"\ndescription = \"field a\"\ntype = \"i32\"\noptional = false\n\n[fields.b]\nname = \"b\"\nnamespace = \"abc.corp.test\"\noptional = false\n\n[fields.b.type.compound_type]\nkind = \"option\"\ntype = \"i32\"\n\n[fields.c]\nname = \"c\"\nnamespace = \"abc.corp.test\"\noptional = false\n\n[fields.c.type.compound_type]\nkind = \"array\"\ntype = \"f32\"\n\n[fields.d]\nname = \"d\"\nnamespace = \"abc.corp.test\"\noptional = false\n\n[fields.d.type.compound_type]\nkind = \"sized_array\"\nsize = 4\n\n[fields.d.type.compound_type.type.compound_type]\nkind = \"sized_array\"\nsize = 4\ntype = \"f32\"\n"
+type: struct@v1
+name: BasicStruct
+namespace: abc.corp.test
+description: Some struct
+version: 1
+fields:
+  a:
+    name: a
+    namespace: abc.corp.test
+    description: field a
+    version: ~
+    type: i32
+    optional: false
+  b:
+    name: b
+    namespace: abc.corp.test
+    description: ~
+    version: ~
+    type:
+      compound_type:
+        kind: option
+        type: i32
+    optional: false
+  c:
+    name: c
+    namespace: abc.corp.test
+    description: ~
+    version: ~
+    type:
+      compound_type:
+        kind: array
+        type: f32
+    optional: false
+  d:
+    name: d
+    namespace: abc.corp.test
+    description: ~
+    version: ~
+    type:
+      compound_type:
+        kind: sized_array
+        size: 4
+        type:
+          compound_type:
+            kind: sized_array
+            size: 4
+            type: f32
+    optional: false

@@ -8,10 +8,10 @@ macro_rules! round_trip {
             fn [<test_ $ty:snake>](){
                 const EXPECT: &'static str = include_str!($expect);
                 let def = $ty::definition();
-                let as_toml = toml::to_string(def).unwrap();
+                let as_toml = toml::to_string(def).unwrap().replace("\r", "");
 
-                insta::assert_yaml_snapshot!(as_toml);
-                assert_eq!(EXPECT, as_toml)
+                insta::assert_yaml_snapshot!(def);
+                assert_eq!(EXPECT.replace("\r", ""), as_toml)
             }
 
             #[test]

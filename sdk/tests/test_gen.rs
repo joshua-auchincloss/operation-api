@@ -12,10 +12,12 @@ mod test_gen {
 #[test]
 fn definition_rt() {
     let def = test_gen::abc_corp_test::BasicStructWithReadme::definition();
-    let ser = toml::to_string(def).unwrap();
+    let ser = toml::to_string(def)
+        .unwrap()
+        .replace("\r", "");
 
     const EXPECT: &'static str = include_str!("../../samples/test-struct-readme.toml");
-    assert_eq!(ser, EXPECT);
+    assert_eq!(ser, EXPECT.replace("\r", ""));
 
     test_gen::preserved();
 }
