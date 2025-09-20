@@ -1,7 +1,5 @@
 use operation_api_sdk::Defined;
-use test_gen_a::operations::{abc_corp_namespace::*, abc_corp_test::*};
-
-const EXCPECT_SOME_STRUCT: &'static str = include_str!("../../../samples/test-struct-readme.toml");
+use test_gen_a::operations::abc_corp_test::*;
 
 macro_rules! round_trip {
     ($expect: literal: $ty: path = $input: literal) => {
