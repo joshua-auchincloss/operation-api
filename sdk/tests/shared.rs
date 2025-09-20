@@ -1,3 +1,4 @@
+#[allow(unused)]
 fn smoke_basic<D: operation_api_sdk::Defined, F: Fn(&String)>(
     out: &'static str,
     snap: F,

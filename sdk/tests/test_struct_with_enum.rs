@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use operation_api_core::namespace;
 
 include!("./shared.rs");
