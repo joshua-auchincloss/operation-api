@@ -5,6 +5,9 @@ targets = ["client", "server", "types"]
 include = [
     "samples/basic-op.toml",
     "samples/basic-struct.toml",
+    "samples/test-enum.toml",
+    "samples/test-str-enum.toml",
+    "samples/test-enum-in-struct.toml",
     "samples/test-struct*.toml",
 ]
 exclude = ["*basic-op*"]

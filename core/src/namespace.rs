@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use convert_case::Casing;
 
-use crate::{Definitions, Field, FieldOrRef, Ident, Operation, Struct, generate::LanguageTrait};
+use crate::{
+    Contigious, Definitions, Enum, Field, FieldOrRef, Ident, Operation, Struct, Version,
+    generate::LanguageTrait,
+};
 
 pub trait OfNamespace {
     const NAMESPACE: &'static str;
@@ -21,22 +24,26 @@ macro_rules! namespace {
     };
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, bon::Builder, Clone)]
 pub struct Namespace {
     pub name: Ident,
+    pub version: Version,
 
     pub fields: BTreeMap<Ident, Field<Ident>>,
     pub ops: BTreeMap<Ident, Operation>,
     pub defs: BTreeMap<Ident, Struct>,
+    pub enums: BTreeMap<Ident, Enum>,
 }
 
 impl Namespace {
     pub fn new<I: Into<Ident>>(name: I) -> Self {
         Self {
             name: name.into(),
+            version: 1_usize.into(),
             fields: Default::default(),
             ops: Default::default(),
             defs: Default::default(),
+            enums: Default::default(),
         }
     }
 
@@ -58,17 +65,46 @@ impl Namespace {
             Definitions::FieldV1(field) => {
                 unique_ns_def(
                     &mut self.fields,
-                    field.name.clone(),
+                    field.meta.name.clone(),
                     &self.name,
                     field,
                     "field",
                 )?;
             },
             Definitions::StructV1(def) => {
-                unique_ns_def(&mut self.defs, def.name.clone(), &self.name, def, "struct")?;
+                unique_ns_def(
+                    &mut self.defs,
+                    def.meta.name.clone(),
+                    &self.name,
+                    def,
+                    "struct",
+                )?;
             },
             Definitions::OperationV1(op) => {
-                unique_ns_def(&mut self.ops, op.name.clone(), &self.name, op, "operation")?;
+                unique_ns_def(
+                    &mut self.ops,
+                    op.meta.name.clone(),
+                    &self.name,
+                    op,
+                    "operation",
+                )?;
+            },
+            Definitions::EnumV1(enm) => {
+                unique_ns_def(
+                    &mut self.enums,
+                    enm.meta.name.clone(),
+                    &self.name,
+                    enm,
+                    "enum",
+                )?;
+            },
+            // note: this is an internal error
+            Definitions::NamespaceV1(ns) => {
+                return Err(crate::Error::NamespaceConflict {
+                    name: ns.name,
+                    tag: "nameespace",
+                    ns: self.name.clone(),
+                });
             },
         }
 
@@ -87,19 +123,31 @@ impl Namespace {
         })
     }
 
+    pub fn resolve_enum(
+        &self,
+        name: &Ident,
+    ) -> crate::Result<&Enum> {
+        self.enums.get(name).ok_or_else(|| {
+            crate::Error::NameNotFound {
+                name: name.clone(),
+                ns: self.name.clone(),
+            }
+        })
+    }
+
     pub fn resolve_field_types(&mut self) -> crate::Result<()> {
         for (def_name, def) in self.defs.clone().iter() {
             let mut swap = vec![];
             for (field_name, field) in &*def.fields {
                 match field {
-                    FieldOrRef::Field(..) => {},
+                    FieldOrRef::Value(..) => {},
                     FieldOrRef::Ref { to } => {
                         if let Some(local_ref) = def.fields.get(&to) {
                             swap.push((field_name.clone(), local_ref.clone()));
                         } else {
                             swap.push((
                                 field_name.clone(),
-                                FieldOrRef::Field(self.resolve_field(to)?.clone().into()),
+                                FieldOrRef::Value(self.resolve_field(to)?.clone().into()),
                             ));
                         }
                     },
@@ -118,8 +166,16 @@ impl Namespace {
         Ok(())
     }
 
+    pub fn ensure_contigiousness(&mut self) -> crate::Result<()> {
+        for (ident, desc) in self.enums.iter() {
+            desc.variants.is_contigious(ident)?;
+        }
+        Ok(())
+    }
+
     pub fn check(&mut self) -> crate::Result<()> {
         self.resolve_field_types()?;
+        self.ensure_contigiousness()?;
         Ok(())
     }
 
@@ -129,10 +185,29 @@ impl Namespace {
             .replace(".", "_")
             .to_case(L::file_case())
     }
+
+    pub fn merge(
+        &mut self,
+        other: Self,
+    ) -> crate::Result<()> {
+        for def in other.defs.into_values() {
+            self.with_definition(Definitions::StructV1(def))?;
+        }
+        for enums in other.enums.into_values() {
+            self.with_definition(Definitions::EnumV1(enums))?;
+        }
+        for fields in other.fields.into_values() {
+            self.with_definition(Definitions::FieldV1(fields))?;
+        }
+        for op in other.ops.into_values() {
+            self.with_definition(Definitions::OperationV1(op))?;
+        }
+        Ok(())
+    }
 }
 
 #[inline]
-fn unique_ns_def<T>(
+pub(crate) fn unique_ns_def<T>(
     sources: &mut BTreeMap<Ident, T>,
     name: Ident,
     ns: &Ident,

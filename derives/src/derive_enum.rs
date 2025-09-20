@@ -1,42 +1,45 @@
-use crate::shared::*;
 use convert_case::{Case, Casing};
 use darling::FromDeriveInput;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::Ident;
+use syn::{Expr, Ident, Lit, LitStr};
 
-#[derive(darling::FromField)]
+use crate::shared::*;
+
+#[derive(darling::FromVariant)]
 #[darling(attributes(fields))]
 pub struct Field {
-    ident: Option<Ident>,
-    ty: syn::Type,
+    ident: Ident,
+    discriminant: Option<syn::Expr>,
 
     #[darling(default)]
-    enm: bool,
-
     describe: Option<DescOrPath>,
+
+    #[darling(default)]
+    str_value: Option<LitStr>,
 }
 
 #[derive(darling::FromDeriveInput)]
-#[darling(attributes(fields))]
-pub struct Struct {
+#[darling(attributes(fields), supports(enum_any))]
+pub struct Enum {
     ident: Ident,
-    data: darling::ast::Data<(), Field>,
+    data: darling::ast::Data<Field, ()>,
 
     version: usize,
 
     describe: Option<DescOrPath>,
 }
 
-pub fn derive_struct(tokens: TokenStream) -> TokenStream {
-    let s = Struct::from_derive_input(&syn::parse(tokens.into()).unwrap()).unwrap();
+pub fn derive_enum(tokens: TokenStream) -> TokenStream {
+    let s = Enum::from_derive_input(&syn::parse(tokens.into()).expect("syn parse"))
+        .expect("darling parse");
 
     let desc = DescOrPath::resolve_defs(&s.ident, s.describe);
 
     let desc_value = desc.desc_value;
     let desc = desc.desc;
 
-    let fields = s.data.take_struct().unwrap().fields;
+    let fields = s.data.take_enum().expect("enum");
 
     let fields_map = quote!(
         let mut m = std::collections::BTreeMap::<_, _>::new();
@@ -46,37 +49,53 @@ pub fn derive_struct(tokens: TokenStream) -> TokenStream {
 
     let fields_def: TokenStream = fields
         .iter()
-        .map(|field| {
-            let iden = field
-                .ident
-                .clone()
-                .expect("struct fields have idents");
-            let ty = field.ty.clone();
+        .enumerate()
+        .map(|(i, field)| {
+            let iden = field.ident.clone();
             let iden_str = format!("{iden}");
 
             let desc = DescOrPath::resolve_defs(&iden, field.describe.clone());
 
             let desc_value = desc.desc_value;
             let desc = desc.desc;
-
-            let ty_clause = if field.enm {
-                quote!(@enm)
-            } else {
-                quote!()
+            let value = match &field.str_value {
+                Some(value) => {
+                    quote!(operation_api_core::StrOrInt::String(#value.into()))
+                },
+                None => {
+                    match field.discriminant.clone() {
+                        Some(expr) => {
+                            match expr {
+                                Expr::Lit(lit) => {
+                                    match lit.lit {
+                                        Lit::Int(int) => {
+                                            quote!({
+                                                let value: usize = #int;
+                                                operation_api_core::StrOrInt::Int(value)
+                                            })
+                                        },
+                                        lit => panic!("{lit:#?} type is unsupported"),
+                                    }
+                                },
+                                _ => panic!("only lit exprs are permitted"),
+                            }
+                        },
+                        None => quote!(operation_api_core::StrOrInt::Int(#i)),
+                    }
+                },
             };
 
             quote!(
                 #desc
 
-                m.insert(stringify!(#iden).into(), operation_api_core::Field{
+                m.insert(#iden_str.into(), operation_api_core::VariantKind{
                     meta: operation_api_core::Meta {
-                        name: Some(#iden_str.into()),
+                        name: #iden_str.into(),
                         namespace: Some(#parent_iden::NAMESPACE.into()),
                         description: #desc_value,
                         version: None,
                     },
-                    ty: operation_api_core::ty!(#ty_clause #ty),
-                    optional: false,
+                    value: #value
                 }.into());
             )
         })
@@ -95,14 +114,14 @@ pub fn derive_struct(tokens: TokenStream) -> TokenStream {
             #fields_def
 
             const VERSION: operation_api_core::Version = operation_api_core::Version::new(#version);
-            operation_api_core::Definitions::StructV1(operation_api_core::Struct{
+            operation_api_core::Definitions::EnumV1(operation_api_core::Enum{
                 meta: operation_api_core::Meta {
                     name: #iden_lit.into(),
                     namespace: #iden::NAMESPACE.into(),
                     version: VERSION.into(),
                     description: #desc_value,
                 },
-                fields: operation_api_core::FieldsList::new(m),
+                variants: operation_api_core::Named::new(m),
             })
         });
 

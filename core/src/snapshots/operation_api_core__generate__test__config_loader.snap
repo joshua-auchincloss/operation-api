@@ -4,6 +4,7 @@ expression: ctx.namespaces
 ---
 abc.corp.namespace:
   name: abc.corp.namespace
+  version: 1
   fields: {}
   ops: {}
   defs:
@@ -16,18 +17,22 @@ abc.corp.namespace:
         a:
           name: ~
           namespace: ~
-          type: i32
           description: ~
+          version: ~
+          type: i32
           optional: false
         b:
           name: ~
           namespace: ~
-          type: f32
           description: ~
+          version: ~
+          type: f32
           optional: true
         c:
           name: ~
           namespace: ~
+          description: ~
+          version: ~
           type:
             compound_type:
               kind: sized_array
@@ -37,11 +42,12 @@ abc.corp.namespace:
                   kind: sized_array
                   size: 4
                   type: f32
-          description: ~
           optional: false
         d:
           name: ~
           namespace: ~
+          description: ~
+          version: ~
           type:
             compound_type:
               kind: sized_array
@@ -51,10 +57,29 @@ abc.corp.namespace:
                   kind: sized_array
                   size: 4
                   type: f32
-          description: ~
           optional: false
+  enums:
+    some_enum:
+      name: some_enum
+      namespace: abc.corp.namespace
+      description: some enum description
+      version: 1
+      variants:
+        A:
+          name: A
+          namespace: ~
+          description: ~
+          version: ~
+          value: 1
+        B:
+          name: B
+          namespace: ~
+          description: Some b variant = 2
+          version: ~
+          value: 2
 abc.corp.test:
   name: abc.corp.test
+  version: 1
   fields: {}
   ops: {}
   defs:
@@ -67,30 +92,35 @@ abc.corp.test:
         a:
           name: a
           namespace: abc.corp.test
-          type: i32
           description: field a
+          version: ~
+          type: i32
           optional: false
         b:
           name: b
           namespace: abc.corp.test
+          description: ~
+          version: ~
           type:
             compound_type:
               kind: option
               type: i32
-          description: ~
           optional: false
         c:
           name: c
           namespace: abc.corp.test
+          description: ~
+          version: ~
           type:
             compound_type:
               kind: array
               type: f32
-          description: ~
           optional: false
         d:
           name: d
           namespace: abc.corp.test
+          description: ~
+          version: ~
           type:
             compound_type:
               kind: sized_array
@@ -100,7 +130,6 @@ abc.corp.test:
                   kind: sized_array
                   size: 4
                   type: f32
-          description: ~
           optional: false
     BasicStructWithReadme:
       name: BasicStructWithReadme
@@ -111,6 +140,24 @@ abc.corp.test:
         a:
           name: a
           namespace: abc.corp.test
-          type: i32
           description: field a
+          version: ~
+          type: i32
           optional: false
+    SomeStructWithEnum:
+      name: SomeStructWithEnum
+      namespace: abc.corp.test
+      description: ~
+      version: 1
+      fields:
+        enum_value:
+          name: enum_value
+          namespace: abc.corp.test
+          description: ~
+          version: ~
+          type:
+            compound_type:
+              kind: enum
+              ref: SomeEnum
+          optional: false
+  enums: {}

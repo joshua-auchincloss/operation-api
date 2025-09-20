@@ -9,9 +9,11 @@ homepage.workspace = true
 [dependencies]
 operation-api-core = { path = "../core" }
 operation-api-derives = { path = "../derives" }
+serde_repr = "*"
 
 [dev-dependencies]
-serde_json = "*"
-toml = "*"
-serde_yaml = "*"
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+serde_yaml.workspace = true
 insta = { workspace = true, features = ["yaml"] }

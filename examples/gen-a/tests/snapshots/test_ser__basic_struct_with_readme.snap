@@ -1,5 +1,5 @@
 ---
-source: sdk/tests/test_struct.rs
-expression: ser
+source: examples/gen-a/tests/test_ser.rs
+expression: as_toml
 ---
 "type = \"struct@v1\"\nname = \"BasicStructWithReadme\"\nnamespace = \"abc.corp.test\"\ndescription = \"\"\"\n# test\nthis is a struct description\n\"\"\"\nversion = 1\n\n[fields.a]\nname = \"a\"\nnamespace = \"abc.corp.test\"\ndescription = \"field a\"\ntype = \"i32\"\noptional = false\n"

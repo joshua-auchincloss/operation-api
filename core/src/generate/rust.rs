@@ -6,7 +6,7 @@ use quote::{ToTokens, quote};
 use syn::{Ident, Lit, LitInt};
 
 use crate::{
-    Operation, Struct,
+    Contigious, EnumValueType, Operation, StrOrInt, Struct,
     generate::{GenOpts, Generate, LanguageTrait, RustConfig, context::WithNsContext},
 };
 
@@ -44,7 +44,9 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
         for ns in ctx.namespaces.values() {
             let ctx = ctx_ns.get(&ns.name).unwrap();
             let mut tt = quote!();
-            for it in ctx.ns.defs.keys() {
+            let mut keys = ctx.ns.defs.keys().collect::<Vec<_>>();
+            keys.append(&mut ctx.ns.enums.keys().collect());
+            for it in keys {
                 let created = def_ident(it.clone());
                 tt.extend(quote!(
                     #created,
@@ -89,50 +91,36 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
     ) -> super::Result<()> {
         let ns_file = state.ns_file();
         let mut tt = quote::quote!();
-        let desc_comment = comment(&def.description);
-        let op_comment = match &def.description {
-            Some(desc) => quote::quote!(#[fields(describe(text = #desc))]),
-            None => quote::quote!(),
-        };
-        let iden = ident(
-            def.name
-                .to_string()
-                .to_case(convert_case::Case::Pascal),
-        );
-        let version = lit(format!("{}", def.version));
 
-        let fields: TokenStream = def
-            .fields
-            .iter()
-            .map(|(field_name, field)| {
-                let f = ident(
-                    field_name
-                        .to_string()
-                        .to_case(convert_case::Case::Snake),
-                );
-                let field = field.unwrap_field();
-                let comment = comment(&field.description);
-                let op_comment = match &field.description {
-                    Some(desc) => {
-                        quote::quote!(
-                            #[fields(
-                                describe(text = #desc)
-                            )]
-                        )
-                    },
-                    None => quote::quote!(),
-                };
+        let desc_comment = def.meta.doc_comment();
+        let op_comment = def.meta.op_comment();
+        let iden = def.meta.ident_as_pascal();
+        let version = def.meta.version();
+
+        let mut fields = quote!();
+        for (field_name, field) in def.fields.iter() {
+            let f = ident(
+                field_name
+                    .to_string()
+                    .to_case(convert_case::Case::Snake),
+            );
+
+            let name = field_name.clone().to_string();
+            let field = field.unwrap_value();
+            let atts = field.ty.rust_attrs();
+            fields.extend({
+                let comment = field.meta.doc_comment();
+                let op_comment = field.meta.op_comment();
                 let ty = field.ty.ty(&state.opts.opts);
-                let name = field_name.clone().to_string();
-
                 quote!(
                     #[serde(rename = #name)]
                     #op_comment
                     #comment
+                    #atts
                     #f: #ty,
                 )
             })
-            .collect();
+        }
 
         tt.extend(quote::quote! {
             #[derive(serde::Serialize, serde::Deserialize, operation_api_sdk::Struct)]
@@ -144,7 +132,89 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
             }
         });
 
-        tracing::info!("writing {} to '{}'", def.name, ns_file.display());
+        tracing::info!("writing {} to '{}'", def.meta.name, ns_file.display());
+
+        state.with_file_handle(ns_file, |w| {
+            write!(w, "{tt}")?;
+            Ok(())
+        })?;
+        Ok(())
+    }
+
+    fn gen_enum<'s>(
+        &self,
+        state: &WithNsContext<'s, RustGenState, RustConfig, Self>,
+        def: &crate::Enum,
+    ) -> super::Result<()> {
+        let ns_file = state.ns_file();
+        let mut tt = quote!();
+
+        let name = def.meta.ident_as_pascal();
+        let doc_comment = def.meta.doc_comment();
+        let op_comment = def.meta.op_comment();
+        let version = def.meta.version();
+
+        let inner_ty = def.variants.is_contigious(&def.meta.name)?;
+        let fields: TokenStream = def
+            .variants
+            .iter()
+            .map(|(_, var)| {
+                let mut atts = quote!();
+                let value = match &var.value {
+                    StrOrInt::String(str) => {
+                        atts.extend(quote!(
+                            #[fields(str_value = #str)]
+                            #[serde(rename = #str)]
+                        ));
+                        quote!()
+                    },
+                    StrOrInt::Int(value) => {
+                        let lit = lit(value.to_string());
+
+                        quote!( = #lit )
+                    },
+                };
+                let doc_comment = var.meta.doc_comment();
+                let op_comment = var.meta.op_comment();
+                let iden = var.meta.ident_as_pascal();
+                quote! {
+                    #doc_comment
+                    #op_comment
+                    #atts
+                    #iden #value,
+                }
+            })
+            .collect();
+
+        let atts = match &inner_ty {
+            EnumValueType::Int => {
+                quote!(
+                    #[derive(
+                        operation_api_sdk::IntDeserialize,
+                        operation_api_sdk::IntSerialize
+                    )]
+                    #[repr(u64)]
+                )
+            },
+            EnumValueType::String => {
+                quote!(
+                    #[derive(
+                        serde::Serialize, serde::Deserialize
+                    )]
+                )
+            },
+        };
+
+        tt.extend(quote! {
+            #[derive(operation_api_sdk::Enum)]
+            #[fields(version = #version)]
+            #atts
+            #doc_comment
+            #op_comment
+            pub enum #name {
+                #fields
+            }
+        });
 
         state.with_file_handle(ns_file, |w| {
             write!(w, "{tt}")?;
@@ -161,7 +231,7 @@ fn def_ident(def: crate::Ident) -> Ident {
     )
 }
 
-fn ident<D: AsRef<str>>(s: D) -> Ident {
+pub(crate) fn ident<D: AsRef<str>>(s: D) -> Ident {
     Ident::new(&s.as_ref(), proc_macro2::Span::call_site())
 }
 
@@ -170,7 +240,7 @@ pub(crate) fn lit(value: String) -> TokenStream {
     quote! {#lit}
 }
 
-fn comment<T: ToTokens>(desc: &Option<T>) -> proc_macro2::TokenStream {
+pub(crate) fn comment<T: ToTokens>(desc: &Option<T>) -> proc_macro2::TokenStream {
     match desc {
         Some(desc) => {
             quote!(

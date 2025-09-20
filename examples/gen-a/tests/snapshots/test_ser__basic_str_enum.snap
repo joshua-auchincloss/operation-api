@@ -1,0 +1,5 @@
+---
+source: examples/gen-a/tests/test_ser.rs
+expression: as_toml
+---
+"type = \"enum@v1\"\nname = \"BasicStrEnum\"\nnamespace = \"abc.corp.test\"\nversion = 1\n\n[variants.A]\nname = \"A\"\nnamespace = \"abc.corp.test\"\nvalue = \"a\"\n\n[variants.B]\nname = \"B\"\nnamespace = \"abc.corp.test\"\nvalue = \"b\"\n"

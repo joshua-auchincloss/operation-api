@@ -53,8 +53,22 @@ impl Context {
         &mut self,
         def: Definitions,
     ) -> crate::Result<()> {
-        self.get_or_create_ns(def.namespace())
-            .with_definition(def)
+        match def {
+            Definitions::NamespaceV1(ns) => {
+                Ok(match self.namespaces.get_mut(&ns.name) {
+                    Some(value) => {
+                        value.merge(ns)?;
+                    },
+                    None => {
+                        self.namespaces.insert(ns.name.clone(), ns);
+                    },
+                })
+            },
+            def => {
+                self.get_or_create_ns(def.namespace())
+                    .with_definition(def)
+            },
+        }
     }
 
     pub fn with_definitions(

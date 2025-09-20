@@ -1,5 +1,5 @@
 ---
-source: sdk/tests/test_struct.rs
-expression: ser
+source: examples/gen-a/tests/test_ser.rs
+expression: as_toml
 ---
 "type = \"struct@v1\"\nname = \"BasicStruct\"\nnamespace = \"abc.corp.test\"\ndescription = \"Some struct\"\nversion = 1\n\n[fields.a]\nname = \"a\"\nnamespace = \"abc.corp.test\"\ndescription = \"field a\"\ntype = \"i32\"\noptional = false\n\n[fields.b]\nname = \"b\"\nnamespace = \"abc.corp.test\"\noptional = false\n\n[fields.b.type.compound_type]\nkind = \"option\"\ntype = \"i32\"\n\n[fields.c]\nname = \"c\"\nnamespace = \"abc.corp.test\"\noptional = false\n\n[fields.c.type.compound_type]\nkind = \"array\"\ntype = \"f32\"\n\n[fields.d]\nname = \"d\"\nnamespace = \"abc.corp.test\"\noptional = false\n\n[fields.d.type.compound_type]\nkind = \"sized_array\"\nsize = 4\n\n[fields.d.type.compound_type.type.compound_type]\nkind = \"sized_array\"\nsize = 4\ntype = \"f32\"\n"

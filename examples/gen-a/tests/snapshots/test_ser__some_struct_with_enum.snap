@@ -1,0 +1,5 @@
+---
+source: examples/gen-a/tests/test_ser.rs
+expression: as_toml
+---
+"type = \"struct@v1\"\nname = \"SomeStructWithEnum\"\nnamespace = \"abc.corp.test\"\nversion = 1\n\n[fields.enum_value]\nname = \"enum_value\"\nnamespace = \"abc.corp.test\"\noptional = false\n\n[fields.enum_value.type.compound_type]\nkind = \"enum\"\nref = \"SomeEnum\"\n"

@@ -7,8 +7,8 @@ version = 1
 [fields.a]
 name = "a"
 namespace = "abc.corp.test"
-type = "i32"
 description = "field a"
+type = "i32"
 optional = false
 
 [fields.b]

@@ -1,6 +1,7 @@
 pub mod context;
 pub mod files;
 pub mod matcher;
+pub mod python;
 pub mod remote;
 pub mod rust;
 
@@ -16,24 +17,10 @@ use config::File;
 use serde::Deserialize;
 
 use crate::{
-    Operation, Struct,
+    Enum, Error, Operation, Result, Struct,
     context::Context,
     generate::{context::WithNsContext, remote::RemoteConfig, rust::RustGenerator},
 };
-
-#[derive(thiserror::Error, Debug)]
-pub enum GenerationError {
-    #[error("config error: {0}")]
-    Config(#[from] config::ConfigError),
-
-    #[error("glob error: {0}")]
-    Glob(#[from] glob::GlobError),
-
-    #[error("{0}")]
-    Io(#[from] std::io::Error),
-}
-
-type Result<T, E = GenerationError> = std::result::Result<T, E>;
 
 pub trait LanguageTrait {
     fn file_case() -> convert_case::Case<'static>;
@@ -107,20 +94,20 @@ pub struct GenerationConfig {
 
 impl GenerationConfig {
     pub fn new<'a, S: Into<&'a str>>(dir: Option<S>) -> Result<Self> {
+        let file_name = format!(
+            "{}",
+            PathBuf::from(dir.map(|s| s.into()).unwrap_or("./"))
+                .join("op-gen")
+                .display()
+        );
         Ok(
             config::ConfigBuilder::<config::builder::DefaultState>::default()
-                .add_source(
-                    File::with_name(&format!(
-                        "{}",
-                        PathBuf::from(dir.map(|s| s.into()).unwrap_or("./"))
-                            .join("op-gen")
-                            .display()
-                    ))
-                    .required(true),
-                )
+                .add_source(File::with_name(&file_name).required(true))
                 .add_source(config::Environment::default().prefix("OP"))
-                .build()?
-                .try_deserialize()?,
+                .build()
+                .map_err(Error::from_with_source_init(file_name.clone()))?
+                .try_deserialize()
+                .map_err(Error::from_with_source_init(file_name.clone()))?,
         )
     }
 }
@@ -172,6 +159,10 @@ where
                 self.gen_operation(&ns_ctx, op)?;
             }
 
+            for enm in ns.enums.values() {
+                self.gen_enum(&ns_ctx, enm)?;
+            }
+
             ctx_ns.insert(ns.name.clone(), ns_ctx);
         }
 
@@ -190,6 +181,12 @@ where
         &self,
         state: &WithNsContext<'s, State, Ext, Self>,
         def: &Operation,
+    ) -> Result<()>;
+
+    fn gen_enum<'s>(
+        &self,
+        state: &WithNsContext<'s, State, Ext, Self>,
+        def: &Enum,
     ) -> Result<()>;
 }
 
@@ -229,6 +226,8 @@ impl GenerationConfig {
 
 #[cfg(test)]
 mod test {
+    use crate::{Definitions, Ident};
+
     use super::*;
 
     #[tokio::test]
@@ -248,6 +247,7 @@ mod test {
                     ],
                     include: vec![
                         "../samples/basic-op.toml".into(),
+                        "../samples/basic-enum.toml".into(),
                         "../samples/basic-struct.toml".into(),
                         "../samples/test-struct*.toml".into()
                     ],
@@ -266,13 +266,23 @@ mod test {
         assert_eq! {
             conf.sources().unwrap(),
             vec![
+                PathBuf::from("../samples/basic-enum.toml"),
                 PathBuf::from("../samples/basic-struct.toml"),
                 PathBuf::from("../samples/test-struct-readme.toml"),
                 PathBuf::from("../samples/test-struct-text.toml"),
+                PathBuf::from("../samples/test-struct-with-enum.toml"),
             ]
         }
 
         let ctx = conf.get_ctx().unwrap();
+        let ns = ctx
+            .namespaces
+            .get(&"abc.corp.namespace".into())
+            .unwrap();
+
+        Definitions::NamespaceV1(ns.clone())
+            .export("../samples/abc_corp_namespace.toml".into())
+            .unwrap();
 
         insta::assert_yaml_snapshot!(ctx.namespaces);
 

@@ -1,0 +1,5 @@
+---
+source: sdk/tests/test_struct_with_enum.rs
+expression: ser
+---
+"type = \"enum@v1\"\nname = \"SomeEnum\"\nnamespace = \"abc.corp.test\"\nversion = 1\n\n[variants.A]\nname = \"A\"\nnamespace = \"abc.corp.test\"\nvalue = 0\n"

@@ -29,10 +29,6 @@ default! {
     bool: { yes = true, no = false }
 }
 
-pub fn default_null<T>() -> Option<T> {
-    None
-}
-
 #[macro_export]
 macro_rules! map {
     ({

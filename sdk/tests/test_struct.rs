@@ -4,6 +4,8 @@ use operation_api_core::namespace;
 use operation_api_derives::Struct;
 use operation_api_sdk::Defined;
 
+include!("./shared.rs");
+
 #[derive(Struct)]
 #[fields(version = 1)]
 #[fields(describe(text = "Some struct"))]
@@ -27,17 +29,6 @@ namespace! {
     "abc.corp.test" {
         BasicStruct, BasicStructWithReadme
     }
-}
-
-fn smoke_basic<D: Defined, F: Fn(&String)>(
-    out: &'static str,
-    snap: F,
-) {
-    let ser = toml::to_string(D::definition()).unwrap();
-
-    snap(&ser);
-
-    std::fs::write(out, ser).unwrap();
 }
 
 #[test]

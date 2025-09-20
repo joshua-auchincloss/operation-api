@@ -4,6 +4,7 @@ targets = ["client", "server", "types"]
 [sources]
 include = [
     "../samples/basic-op.toml",
+    "../samples/basic-enum.toml",
     "../samples/basic-struct.toml",
     "../samples/test-struct*.toml",
 ]
