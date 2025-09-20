@@ -7,7 +7,9 @@ use syn::{Ident, Lit, LitInt};
 
 use crate::{
     Contigious, EnumValueType, Operation, StrOrInt, Struct,
-    generate::{GenOpts, Generate, LanguageTrait, RustConfig, context::WithNsContext},
+    generate::{
+        GenOpts, Generate, LanguageTrait, RustConfig, context::WithNsContext, files::WithFlush,
+    },
 };
 
 pub struct RustGenerator;
@@ -29,7 +31,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
     fn on_create<'s>(
         state: &WithNsContext<'s, RustGenState, RustConfig, Self>,
         fname: &PathBuf,
-        f: &mut Box<dyn Write>,
+        f: &mut Box<dyn WithFlush>,
     ) -> std::io::Result<()> {
         Ok(())
     }

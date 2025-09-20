@@ -1,4 +1,5 @@
 use std::{
+    cell::Cell,
     collections::BTreeMap,
     io::Write,
     marker::PhantomData,
@@ -7,23 +8,38 @@ use std::{
 };
 
 use crate::{
-    generate::{ConfigExt, GenOpts, LanguageTrait},
+    generate::{
+        ConfigExt, GenOpts, LanguageTrait, RustConfig,
+        files::{MemFlush, WithFlush},
+        rust::RustGenState,
+    },
     namespace::Namespace,
 };
 
 type OnCreate<'ns, T, Config, L> = Box<
-    dyn Fn(&WithNsContext<'ns, T, Config, L>, &PathBuf, &mut Box<dyn Write>) -> std::io::Result<()>,
+    dyn (Fn(
+            &WithNsContext<'ns, T, Config, L>,
+            &PathBuf,
+            &mut Box<dyn WithFlush>,
+        ) -> std::io::Result<()>)
+        + Send
+        + Sync,
 >;
+
+thread_local! {
+    pub static RUST_CALLBACK: Cell<Option<OnCreate<'static,RustGenState, RustConfig, super::rust::RustGenerator >>> = Cell::new(None);
+}
 
 pub struct WithNsContext<'ns, T, Config: ConfigExt, L: LanguageTrait> {
     pub ns: &'ns Namespace,
     pub state: Arc<T>,
     pub opts: &'ns GenOpts<Config>,
 
-    files: Mutex<BTreeMap<PathBuf, Box<dyn Write>>>,
+    files: Mutex<BTreeMap<PathBuf, Box<dyn WithFlush>>>,
 
     on_create: OnCreate<'ns, T, Config, L>,
     ph: PhantomData<L>,
+    mem_flush: Option<MemFlush>,
 }
 
 impl<'ns, T, Config: ConfigExt, L: LanguageTrait> WithNsContext<'ns, T, Config, L> {
@@ -32,6 +48,7 @@ impl<'ns, T, Config: ConfigExt, L: LanguageTrait> WithNsContext<'ns, T, Config, 
         state: Arc<T>,
         opts: &'ns GenOpts<Config>,
         on_create: OnCreate<'ns, T, Config, L>,
+        mem_flush: Option<MemFlush>,
     ) -> Self {
         Self {
             ns,
@@ -40,6 +57,7 @@ impl<'ns, T, Config: ConfigExt, L: LanguageTrait> WithNsContext<'ns, T, Config, 
             on_create,
             files: Default::default(),
             ph: Default::default(),
+            mem_flush,
         }
     }
 }
@@ -59,8 +77,14 @@ impl<'ns, T, Config: ConfigExt, L: LanguageTrait> WithNsContext<'ns, T, Config, 
             std::fs::create_dir_all(parent)?;
         }
 
-        let mut new_f =
-            Box::new(super::files::FileOrMem::new(name.clone(), self.opts.mem)?) as Box<dyn Write>;
+        let mut new_f = Box::new(super::files::FileOrMem::new(name.clone(), self.opts.mem)?)
+            as Box<dyn WithFlush>;
+
+        if self.opts.mem {
+            if let Some(mem_flush) = self.mem_flush.clone() {
+                new_f.with_flush(mem_flush);
+            }
+        }
 
         (self.on_create)(self, name, &mut new_f)?;
 
@@ -70,7 +94,7 @@ impl<'ns, T, Config: ConfigExt, L: LanguageTrait> WithNsContext<'ns, T, Config, 
         Ok(())
     }
 
-    pub fn with_file_handle<F: Fn(&mut Box<dyn Write>) -> std::io::Result<()>>(
+    pub fn with_file_handle<F: Fn(&mut Box<dyn WithFlush>) -> std::io::Result<()>>(
         &self,
         name: PathBuf,
         handle: F,
@@ -86,7 +110,10 @@ impl<'ns, T, Config: ConfigExt, L: LanguageTrait> WithNsContext<'ns, T, Config, 
 
         let mut f = self.files.lock().unwrap();
 
-        (handle)(f.get_mut(&name).unwrap())?;
+        let file = f.get_mut(&name).unwrap();
+        (handle)(file)?;
+
+        file.flush()?;
 
         Ok(())
     }

@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 
 use convert_case::Casing;
 
-use crate::{
-    Contigious, Definitions, Enum, Field, FieldOrRef, Ident, Operation, Struct, Version,
-    generate::LanguageTrait,
-};
+use crate::{Contigious, Definitions, Enum, Field, FieldOrRef, Ident, Operation, Struct, Version};
+
+#[cfg(feature = "generate")]
+use crate::generate::LanguageTrait;
 
 pub trait OfNamespace {
     const NAMESPACE: &'static str;
@@ -179,6 +179,7 @@ impl Namespace {
         Ok(())
     }
 
+    #[cfg(feature = "generate")]
     pub fn normalized_path<L: LanguageTrait>(&self) -> String {
         self.name
             .to_string()

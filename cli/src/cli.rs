@@ -33,10 +33,22 @@ impl Cli {
     pub async fn run(self) -> operation_api_core::Result<()> {
         match self.command {
             Command::Generate(args) => {
-                let cfg = operation_api_core::generate::GenerationConfig::new(
-                    args.config_dir.as_deref(),
+                operation_api_core::generate::Generation::new(
+                    operation_api_core::generate::GenerationConfig::new(
+                        args.config.config_dir.as_deref(),
+                    )?,
+                )?
+                .generate_all(None)
+                .await
+            },
+            Command::Check(args) => {
+                // we only need to initialize as we perform pre-checks at object creation
+                let _ = operation_api_core::generate::Generation::new(
+                    operation_api_core::generate::GenerationConfig::new(
+                        args.config.config_dir.as_deref(),
+                    )?,
                 )?;
-                cfg.generate_all().await
+                Ok(())
             },
         }
     }
@@ -44,12 +56,27 @@ impl Cli {
 
 #[derive(clap::Subcommand, Debug, Clone)]
 enum Command {
-    #[clap(alias = "gen")]
+    #[clap(alias = "gen", alias = "g")]
     Generate(GenArgs),
+
+    #[clap(alias = "c")]
+    Check(CheckArgs),
+}
+
+#[derive(clap::Args, Debug, Clone)]
+struct WithConfig {
+    #[clap(short = 'd', long = "config-dir")]
+    config_dir: Option<String>,
 }
 
 #[derive(clap::Args, Debug, Clone)]
 struct GenArgs {
-    #[clap(short = 'd', long = "config-dir")]
-    config_dir: Option<String>,
+    #[clap(flatten)]
+    config: WithConfig,
+}
+
+#[derive(clap::Args, Debug, Clone)]
+struct CheckArgs {
+    #[clap(flatten)]
+    config: WithConfig,
 }

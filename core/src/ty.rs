@@ -8,7 +8,9 @@ use std::{
 
 use convert_case::Casing;
 
-use crate::{generate::RustConfig, namespace::Namespace};
+#[cfg(feature = "generate")]
+use crate::generate::RustConfig;
+use crate::namespace::Namespace;
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ident(String);
@@ -82,6 +84,9 @@ pub enum CompoundType {
         #[serde(rename = "ref")]
         to: Ident,
     },
+    // OneOf {
+    //     one_of: Ident,
+    // },
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
@@ -141,6 +146,7 @@ pub struct Field<Ns> {
 }
 
 impl Type {
+    #[cfg(feature = "generate")]
     pub fn ty(
         &self,
         opts: &RustConfig,
@@ -193,6 +199,10 @@ impl Type {
                             [#inner; #size]
                         )
                     },
+                    // CompoundType::OneOf { one_of } => {
+                    //     let ident = crate::generate::rust::ident(s)
+                    //     quote::quote!(#one_of)
+                    // },
                 }
             },
         }
@@ -324,6 +334,7 @@ pub struct Meta<IdentTy, NsTy, Version> {
     pub version: Version,
 }
 
+#[cfg(feature = "generate")]
 impl<IdentTy, NsTy, Version> Meta<IdentTy, NsTy, Version> {
     pub fn doc_comment(&self) -> proc_macro2::TokenStream {
         crate::generate::rust::comment(&self.description)
@@ -343,12 +354,14 @@ impl<IdentTy, NsTy, Version> Meta<IdentTy, NsTy, Version> {
     }
 }
 
+#[cfg(feature = "generate")]
 impl<IdentTy, Ns> Meta<IdentTy, Ns, Version> {
     pub fn version(&self) -> proc_macro2::TokenStream {
         crate::generate::rust::lit(self.version.0.to_string())
     }
 }
 
+#[cfg(feature = "generate")]
 impl<IdentTy: ToString, Ns, Version> Meta<IdentTy, Ns, Version> {
     pub fn ident_as_pascal(&self) -> syn::Ident {
         crate::generate::rust::ident(

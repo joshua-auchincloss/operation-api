@@ -1,10 +1,13 @@
 pub mod context;
-pub mod generate;
+
 pub mod namespace;
 pub mod ty;
 pub(crate) mod utils;
 pub use paste::paste;
 pub use ty::*;
+
+#[cfg(feature = "generate")]
+pub mod generate;
 
 #[macro_export]
 macro_rules! ty {

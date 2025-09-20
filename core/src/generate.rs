@@ -8,18 +8,23 @@ pub mod rust;
 use std::{
     collections::BTreeMap,
     fmt::Debug,
-    io::Write,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use config::File;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::Deserialize;
 
 use crate::{
     Enum, Error, Operation, Result, Struct,
     context::Context,
-    generate::{context::WithNsContext, remote::RemoteConfig, rust::RustGenerator},
+    generate::{
+        context::WithNsContext,
+        files::{MemFlush, WithFlush},
+        remote::RemoteConfig,
+        rust::RustGenerator,
+    },
 };
 
 pub trait LanguageTrait {
@@ -50,11 +55,11 @@ pub trait ConfigExt: Debug + PartialEq + Clone {}
 #[derive(Deserialize, PartialEq, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub struct GenOpts<Ext: ConfigExt> {
-    output_dir: PathBuf,
-    opts: Ext,
+    pub output_dir: PathBuf,
+    pub opts: Ext,
 
-    #[serde(default = "crate::utils::default_no")]
-    mem: bool,
+    #[serde(default)]
+    pub mem: bool,
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
@@ -62,6 +67,12 @@ pub struct GenOpts<Ext: ConfigExt> {
 pub struct RustConfig {}
 
 impl ConfigExt for RustConfig {}
+
+#[derive(Deserialize, PartialEq, Debug, Clone)]
+#[serde(rename_all = "kebab-case")]
+pub struct JsonSchemaConfig {}
+
+impl ConfigExt for JsonSchemaConfig {}
 
 crate::default!(
     Vec<Target>: { targets = vec![Target::Types] },
@@ -80,16 +91,16 @@ pub struct Source {
 #[derive(Deserialize, PartialEq, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct GenerationConfig {
-    sources: Source,
+    pub sources: Source,
 
     #[serde(default = "default_targets")]
-    targets: Vec<Target>,
+    pub targets: Vec<Target>,
 
     #[serde(default)]
-    languages: Vec<Language>,
+    pub languages: Vec<Language>,
 
     #[serde(default)]
-    rust: Option<GenOpts<RustConfig>>,
+    pub rust: Option<GenOpts<RustConfig>>,
 }
 
 impl GenerationConfig {
@@ -112,13 +123,13 @@ impl GenerationConfig {
     }
 }
 
-pub trait Generate<State, Ext: ConfigExt>
+pub trait Generate<State: Sync + Send, Ext: ConfigExt + Sync + Send>
 where
-    Self: LanguageTrait + Sized, {
+    Self: LanguageTrait + Sized + Sync + Send, {
     fn on_create<'s>(
         state: &WithNsContext<'s, State, Ext, Self>,
         fname: &PathBuf,
-        f: &mut Box<dyn Write>,
+        f: &mut Box<dyn WithFlush>,
     ) -> std::io::Result<()>;
 
     fn new_state<'ns>(
@@ -140,15 +151,18 @@ where
         &self,
         ctx: &Context,
         opts: &'ns GenOpts<Ext>,
+        mem_flush: Option<MemFlush>,
     ) -> Result<()> {
         let state = Arc::new(self.new_state(opts));
         let mut ctx_ns = BTreeMap::new();
+
         for ns in ctx.namespaces.values() {
             let ns_ctx = WithNsContext::new(
                 ns,
                 state.clone(),
                 opts,
                 Box::new(|state, fname, f| Self::on_create(state, fname, f)),
+                mem_flush.clone(),
             );
 
             for def in ns.defs.values() {
@@ -191,7 +205,7 @@ where
 }
 
 impl GenerationConfig {
-    fn sources(&self) -> Result<Vec<PathBuf>> {
+    pub fn sources(&self) -> Result<Vec<PathBuf>> {
         matcher::walk(&self.sources)
     }
 
@@ -207,13 +221,60 @@ impl GenerationConfig {
         Ok(ctx)
     }
 
-    pub async fn generate_all(&self) -> crate::Result<()> {
-        let ctx = self.get_ctx()?;
+    pub fn set_mem(
+        &mut self,
+        mem: bool,
+    ) {
+        if let Some(rs) = &mut self.rust {
+            rs.mem = mem;
+        }
+    }
+}
 
+pub struct Generation {
+    pub config: GenerationConfig,
+    pub ctx: Context,
+}
+
+impl Generation {
+    pub fn new(config: GenerationConfig) -> Result<Self> {
+        let ctx = config.get_ctx()?;
+        Ok(Self { config, ctx })
+    }
+
+    pub fn generate_all_sync(
+        &self,
+        mem_flush: Option<MemFlush>,
+    ) -> crate::Result<()> {
+        let mut generators = vec![];
+
+        if let Some(rust) = &self.config.rust {
+            generators.push(Box::new(|| {
+                RustGenerator.gen_ctx(&self.ctx, rust, mem_flush.clone())
+            }));
+        }
+
+        for it in generators
+            .into_par_iter()
+            .map(|handle| (*handle)())
+            .collect::<Vec<_>>()
+        {
+            it?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn generate_all(
+        &self,
+        mem_flush: Option<MemFlush>,
+    ) -> crate::Result<()> {
         let mut futs = vec![];
-        if let Some(rust) = &self.rust {
+        if let Some(rust) = &self.config.rust {
             let generator = RustGenerator;
-            futs.push(Box::pin(async move { generator.gen_ctx(&ctx, rust) }));
+            futs.push(Box::pin(async move {
+                generator.gen_ctx(&self.ctx, rust, mem_flush.clone())
+            }));
         }
 
         for fut in futs {
@@ -226,9 +287,25 @@ impl GenerationConfig {
 
 #[cfg(test)]
 mod test {
-    use crate::{Definitions, Ident};
+    use crate::{Definitions, generate::files::MemCollector};
 
     use super::*;
+
+    #[test]
+    fn test_gen_mem() -> crate::Result<()> {
+        let mut conf = GenerationConfig::new(Some("../samples/config-a")).unwrap();
+        conf.set_mem(true);
+
+        let collector = MemCollector::new();
+
+        let generate = Generation::new(conf)?;
+        generate.generate_all_sync(Some(collector.mem_flush()))?;
+
+        let state = collector.files();
+        assert_eq!(state.keys().len(), 2);
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_config_loader() {
@@ -286,6 +363,7 @@ mod test {
 
         insta::assert_yaml_snapshot!(ctx.namespaces);
 
-        conf.generate_all().await.unwrap();
+        let generator = Generation::new(conf).unwrap();
+        generator.generate_all(None).await.unwrap();
     }
 }
