@@ -1,6 +1,7 @@
 [workspace.package]
 edition = "2024"
 version = "0.1.0"
+license-file = "LICENSE.md"
 
 homepage = "https://github.com/joshua-auchincloss/operation-api"
 authors = ["Joshua Auchincloss <joshua.auchincloss@proton.me>"]
