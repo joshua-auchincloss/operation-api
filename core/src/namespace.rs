@@ -136,6 +136,18 @@ impl Namespace {
         })
     }
 
+    pub fn resolve_struct(
+        &self,
+        name: &Ident,
+    ) -> crate::Result<&Struct> {
+        self.defs.get(name).ok_or_else(|| {
+            crate::Error::NameNotFound {
+                name: name.clone(),
+                ns: self.name.clone(),
+            }
+        })
+    }
+
     pub fn resolve_enum(
         &self,
         name: &Ident,
@@ -187,6 +199,7 @@ impl Namespace {
     }
 
     pub fn check(&mut self) -> crate::Result<()> {
+        self.simplify_types();
         self.resolve_field_types()?;
         self.ensure_contigiousness()?;
         Ok(())
@@ -198,6 +211,26 @@ impl Namespace {
             .to_string()
             .replace(".", "_")
             .to_case(L::file_case())
+    }
+
+    pub fn simplify_types(&mut self) {
+        for ty in self.fields.values_mut() {
+            ty.ty = ty.ty.simplify();
+        }
+
+        for def in self.defs.values_mut() {
+            for field in def.fields.values_mut() {
+                if let FieldOrRef::Value(f) = field {
+                    f.ty = f.ty.simplify();
+                }
+            }
+        }
+
+        for one in self.one_ofs.values_mut() {
+            for variant in one.variants.values_mut() {
+                variant.ty = variant.ty.simplify();
+            }
+        }
     }
 
     pub fn merge(

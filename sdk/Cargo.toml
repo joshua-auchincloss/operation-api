@@ -6,9 +6,17 @@ authors.workspace = true
 homepage.workspace = true
 
 
+[features]
+generate = []
+chrono = ["operation-api-core/chrono"]
+time = ["operation-api-core/time"]
+
 [dependencies]
+
 operation-api-core = { path = "../core" }
 operation-api-derives = { path = "../derives" }
+
+
 serde_repr = "*"
 
 [dev-dependencies]

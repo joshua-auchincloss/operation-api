@@ -13,43 +13,8 @@ pub mod generate;
 
 #[macro_export]
 macro_rules! ty {
-    (complex) => {
-        $crate::Type::Complex
-    };
-    (datetime) => {
-        $crate::Type::DateTime
-    };
-    (Option<$t: tt> ) => {
-        $crate::Type::CompoundType($crate::CompoundType::Option {
-            ty: Box::new($crate::ty! {$t}),
-        })
-    };
-    (Vec<$t: tt>) => {
-        $crate::Type::CompoundType($crate::CompoundType::Array {
-            ty: Box::new($crate::ty! {$t}),
-        })
-    };
-    ([$t: tt; $sz: literal]) => {
-        $crate::Type::CompoundType($crate::CompoundType::SizedArray {
-            ty: Box::new($crate::ty! {$t}),
-            size: $sz,
-        })
-    };
-    (@enm $t: path) => {
-        $crate::Type::CompoundType($crate::CompoundType::Enum {
-            to: stringify!($t).into(),
-        })
-    };
-    (@one_of $t: path) => {
-        $crate::Type::CompoundType($crate::CompoundType::OneOf {
-            to: stringify!($t).into(),
-        })
-    };
-    ($t: path) => {
-        // $crate::Type::Enum {
-        //     $crate::
-        // }
-        $crate::paste! { $crate::Type::[<$t:camel>] }
+    ($t: tt) => {
+        <$t as $crate::Typed>::ty()
     };
 }
 
@@ -147,7 +112,7 @@ mod test {
 
     use crate::{
         CompoundType, Definitions, Enum, Field, FieldOrRef, FieldsList, Meta, Named, Operation,
-        Struct, Type, VariantKind, Version, map,
+        Struct, Type, Typed, VariantKind, Version, map, ty,
     };
 
     const BASIC_STRUCT: &'static str = include_str!("../../samples/basic-struct.toml");
@@ -197,7 +162,7 @@ mod test {
             .namespace("abc.corp.namespace".into())
             .description("add a sequence of numbers together".into()).build() )
                 .inputs(FieldsList::new(map!({
-                    values: Field::builder().ty(ty!(Vec<u32>)).optional(false).meta(empty_meta()).build()
+                    values: Field::builder().ty(<Vec<u32>>::ty()).optional(false).meta(empty_meta()).build()
                 })))
                 .outputs(FieldsList::new(map!({
                     value: Field::builder().ty(ty!(u32)).optional(false).meta(empty_meta()).build()
@@ -259,9 +224,7 @@ mod test {
 
         assert_eq!(t, Type::I32);
 
-        let t = ty! {
-            Option<i32>
-        };
+        let t = <Option<i32>>::ty();
 
         assert_eq!(
             t,
@@ -282,9 +245,7 @@ mod test {
             })
         );
 
-        let t = ty! {
-            Vec<i32>
-        };
+        let t = <Vec<i32>>::ty();
 
         assert_eq!(
             t,
@@ -292,16 +253,5 @@ mod test {
                 ty: Box::new(Type::I32)
             })
         );
-
-        #[allow(unused)]
-        enum TestEnum {}
-
-        let t = ty! {
-           @enm TestEnum
-        };
-
-        assert_eq! {
-            t, Type::CompoundType(CompoundType::Enum { to: "TestEnum".into() })
-        };
     }
 }

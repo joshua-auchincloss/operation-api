@@ -86,25 +86,17 @@ pub fn derive_struct(tokens: TokenStream) -> TokenStream {
         let desc_value = desc.desc_value;
         let desc = desc.desc;
 
-        let ty_clause = if field.enm {
-            quote!(@enm)
-        } else if field.one_of {
-            quote!(@one_of)
-        } else {
-            quote!()
-        };
-
         fields_def.extend(quote!(
             #desc
 
-            m.insert(stringify!(#iden).into(), operation_api_core::Field{
-                meta: operation_api_core::Meta {
+            m.insert(stringify!(#iden).into(), operation_api_sdk::Field{
+                meta: operation_api_sdk::Meta {
                     name: Some(#iden_str.into()),
                     namespace: Some(#parent_iden::NAMESPACE.into()),
                     description: #desc_value,
                     version: None,
                 },
-                ty: operation_api_core::ty!(#ty_clause #ty),
+                ty: <#ty>::ty(),
                 optional: false,
             }.into());
         ));
@@ -116,27 +108,36 @@ pub fn derive_struct(tokens: TokenStream) -> TokenStream {
     let iden_def = ident(format!("{iden}_DEF").to_case(Case::UpperSnake));
 
     let def = quote!(
-        static #iden_def: std::sync::LazyLock<operation_api_core::Definitions> = std::sync::LazyLock::new(|| {
-            use operation_api_core::namespace::OfNamespace;
+        static #iden_def: std::sync::LazyLock<operation_api_sdk::Definitions> = std::sync::LazyLock::new(|| {
+            use operation_api_sdk::{OfNamespace, Typed};
 
             #fields_map
             #fields_def
 
-            const VERSION: operation_api_core::Version = operation_api_core::Version::new(#version);
-            operation_api_core::Definitions::StructV1(operation_api_core::Struct{
-                meta: operation_api_core::Meta {
+            const VERSION: operation_api_sdk::Version = operation_api_sdk::Version::new(#version);
+            operation_api_sdk::Definitions::StructV1(operation_api_sdk::Struct{
+                meta: operation_api_sdk::Meta {
                     name: #iden_lit.into(),
                     namespace: #iden::NAMESPACE.into(),
                     version: VERSION.into(),
                     description: #desc_value,
                 },
-                fields: operation_api_core::FieldsList::new(m),
+                fields: operation_api_sdk::FieldsList::new(m),
             })
         });
 
+        impl operation_api_sdk::Typed for #iden {
+            fn ty() -> operation_api_sdk::Type {
+                operation_api_sdk::Type::CompoundType(
+                    operation_api_sdk::CompoundType::Struct{
+                        to: #iden_lit.into()
+                    }
+                )
+            }
+        }
 
-        impl operation_api_core::Defined for #iden {
-            fn definition() -> &'static operation_api_core::Definitions {
+        impl operation_api_sdk::Defined for #iden {
+            fn definition() -> &'static operation_api_sdk::Definitions {
                 use std::ops::Deref;
                 #iden_def.deref()
             }

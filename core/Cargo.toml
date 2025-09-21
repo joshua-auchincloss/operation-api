@@ -7,9 +7,14 @@ homepage.workspace = true
 
 [features]
 generate = []
+chrono = ["dep:chrono"]
+time = ["dep:time"]
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
+chrono = { workspace = true, features = ["serde"], optional = true }
+time = { workspace = true, features = ["serde"], optional = true }
+
 paste.workspace = true
 bon.workspace = true
 inventory.workspace = true

@@ -49,7 +49,7 @@ pub fn derive_one_of(tokens: TokenStream) -> TokenStream {
     );
 
     let fields_map = quote!(
-        let mut m = std::collections::BTreeMap::<_, operation_api_core::OneOfVariant>::new();
+        let mut m = std::collections::BTreeMap::<_, operation_api_sdk::OneOfVariant>::new();
     );
 
     let mut fields_def = quote!();
@@ -57,7 +57,7 @@ pub fn derive_one_of(tokens: TokenStream) -> TokenStream {
     for field in fields {
         let iden = field.ident.clone();
         let iden_str = format!("{iden}");
-        let ty_tokens = match field
+        let ty = match field
             .fields
             .fields
             .iter()
@@ -81,14 +81,15 @@ pub fn derive_one_of(tokens: TokenStream) -> TokenStream {
                     .into_compile_error();
                 }
                 saw_nullish = true;
-                quote::quote! {Never}
+                // quote::quote! {Never}
+                quote::quote!(Option<()>)
             },
         };
 
         fields_def.extend(quote!(
-            m.insert(#iden_str.into(), operation_api_core::OneOfVariant{
+            m.insert(#iden_str.into(), operation_api_sdk::OneOfVariant{
                 name: #iden_str.into(),
-                ty: operation_api_core::ty!(#ty_tokens),
+                ty: <#ty>::ty(),
             });
         ));
     }
@@ -99,27 +100,37 @@ pub fn derive_one_of(tokens: TokenStream) -> TokenStream {
     let iden_def = ident(format!("{iden}_DEF").to_case(Case::UpperSnake));
 
     let def = quote!(
-        static #iden_def: std::sync::LazyLock<operation_api_core::Definitions> = std::sync::LazyLock::new(|| {
-            use operation_api_core::namespace::OfNamespace;
+        static #iden_def: std::sync::LazyLock<operation_api_sdk::Definitions> = std::sync::LazyLock::new(|| {
+            use operation_api_sdk::{OfNamespace, Typed};
 
             #fields_map
             #fields_def
 
-            const VERSION: operation_api_core::Version = operation_api_core::Version::new(#version);
-            operation_api_core::Definitions::OneOfV1(operation_api_core::OneOf{
-                meta: operation_api_core::Meta {
+            const VERSION: operation_api_sdk::Version = operation_api_sdk::Version::new(#version);
+            operation_api_sdk::Definitions::OneOfV1(operation_api_sdk::OneOf{
+                meta: operation_api_sdk::Meta {
                     name: #iden_lit.into(),
                     namespace: #iden::NAMESPACE.into(),
                     version: VERSION.into(),
                     description: #desc_value,
                 },
-                variants: operation_api_core::Named::new(m),
+                variants: operation_api_sdk::Named::new(m),
             })
         });
 
 
-        impl operation_api_core::Defined for #iden {
-            fn definition() -> &'static operation_api_core::Definitions {
+        impl operation_api_sdk::Typed for #iden {
+            fn ty() -> operation_api_sdk::Type {
+                operation_api_sdk::Type::CompoundType(
+                    operation_api_sdk::CompoundType::OneOf{
+                        to: #iden_lit.into()
+                    }
+                )
+            }
+        }
+
+        impl operation_api_sdk::Defined for #iden {
+            fn definition() -> &'static operation_api_sdk::Definitions {
                 use std::ops::Deref;
                 #iden_def.deref()
             }

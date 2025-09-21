@@ -133,6 +133,15 @@ pub fn derive_enum(tokens: TokenStream) -> TokenStream {
             })
         });
 
+        impl operation_api_core::Typed for #iden {
+            fn ty() -> operation_api_core::Type {
+                operation_api_core::Type::CompoundType(
+                    operation_api_core::CompoundType::Enum{
+                        to: #iden_lit.into()
+                    }
+                )
+            }
+        }
 
         impl operation_api_core::Defined for #iden {
             fn definition() -> &'static operation_api_core::Definitions {

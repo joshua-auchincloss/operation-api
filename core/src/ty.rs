@@ -88,6 +88,10 @@ pub enum CompoundType {
         #[serde(rename = "ref")]
         to: Ident,
     },
+    Struct {
+        #[serde(rename = "ref")]
+        to: Ident,
+    },
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
@@ -97,6 +101,8 @@ pub enum Type {
     U16,
     U32,
     U64,
+
+    Usize,
 
     I8,
     I16,
@@ -119,6 +125,133 @@ pub enum Type {
     Never,
 
     CompoundType(CompoundType),
+}
+
+impl Type {
+    pub fn simplify(&self) -> Self {
+        match self {
+            Type::CompoundType(ty) => {
+                match ty {
+                    CompoundType::Option { ty } => {
+                        match ty.as_ref() {
+                            Type::Never => Self::Never,
+                            Type::CompoundType(CompoundType::Option { ty }) => {
+                                Self::CompoundType(CompoundType::Option {
+                                    ty: Box::new(ty.simplify()),
+                                })
+                            },
+                            rest => {
+                                Self::CompoundType(CompoundType::Option {
+                                    ty: Box::new(rest.simplify()),
+                                })
+                            },
+                        }
+                    },
+                    rest => Self::CompoundType(rest.clone()),
+                }
+            },
+            rest => rest.clone(),
+        }
+    }
+}
+
+pub trait Typed {
+    fn ty() -> Type;
+}
+
+macro_rules! transparent {
+    ($ty: ty) => {
+        impl Typed for $ty {
+            fn ty() -> Type {
+                paste::paste! {
+                    Type::[<$ty:camel>]
+                }
+            }
+        }
+    };
+    ($(
+        $ty: ty
+    ), + $(,)?) => {
+        $(
+            transparent!($ty);
+        )*
+    };
+}
+
+transparent! {
+    u8,
+    u16,
+    u32,
+    u64,
+
+    usize,
+
+    i8,
+    i16,
+    i32,
+    i64,
+
+    f32,
+    f64,
+
+    bool,
+
+    String,
+}
+
+impl<T: Typed> Typed for Vec<T> {
+    fn ty() -> Type {
+        Type::CompoundType(CompoundType::Array {
+            ty: Box::new(T::ty()),
+        })
+    }
+}
+
+impl<T: Typed> Typed for Option<T> {
+    fn ty() -> Type {
+        if std::any::type_name::<T>() == "()" {
+            Type::Never
+        } else {
+            Type::CompoundType(CompoundType::Option {
+                ty: Box::new(T::ty()),
+            })
+        }
+    }
+}
+
+impl<T: Typed, const S: usize> Typed for [T; S] {
+    fn ty() -> Type {
+        Type::CompoundType(CompoundType::SizedArray {
+            ty: Box::new(T::ty()),
+            size: S,
+        })
+    }
+}
+
+#[cfg(feature = "chrono")]
+impl<Tz: chrono::TimeZone> Typed for chrono::DateTime<Tz> {
+    fn ty() -> Type {
+        Type::DateTime
+    }
+}
+
+impl Typed for std::time::Instant {
+    fn ty() -> Type {
+        Type::DateTime
+    }
+}
+
+#[cfg(feature = "time")]
+impl Typed for time::UtcDateTime {
+    fn ty() -> Type {
+        Type::DateTime
+    }
+}
+
+impl Typed for () {
+    fn ty() -> Type {
+        Type::Never
+    }
 }
 
 impl From<Field<Ident>> for Field<Option<Ident>> {
@@ -169,6 +302,7 @@ impl Type {
             Type::U16 => quote::quote!(u8),
             Type::U32 => quote::quote!(u32),
             Type::U64 => quote::quote!(u64),
+            Type::Usize => quote::quote!(usize),
 
             Type::F32 => quote::quote!(f32),
             Type::F64 => quote::quote!(f64),
@@ -186,6 +320,10 @@ impl Type {
                         quote::quote!(#as_rs_ref)
                     },
                     CompoundType::OneOf { to } => {
+                        let as_rs_ref = super::generate::rust::ident(to.to_string());
+                        quote::quote!(#as_rs_ref)
+                    },
+                    CompoundType::Struct { to } => {
                         let as_rs_ref = super::generate::rust::ident(to.to_string());
                         quote::quote!(#as_rs_ref)
                     },
