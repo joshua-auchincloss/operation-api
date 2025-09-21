@@ -38,7 +38,7 @@ fn main() -> operation_api_core::Result<()> {
         .build()
         .expect("runtime");
 
-    let _ = rt.block_on(cli.run())?;
+    rt.block_on(cli.run())?;
 
     Ok(())
 }

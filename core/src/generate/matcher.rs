@@ -5,23 +5,22 @@ use crate::generate::Source;
 pub fn walk(source: &Source) -> super::Result<Vec<PathBuf>> {
     let mut found = BTreeSet::new();
     for include in &source.include {
-        for p in glob::glob(&include).unwrap() {
+        for p in glob::glob(include)? {
             found.insert(p?);
         }
     }
 
     let mut match_exp = vec![];
     for exclude in &source.exclude {
-        let exp = glob::Pattern::new(&exclude).unwrap();
-        match_exp.push(exp);
+        match_exp.push(glob::Pattern::new(exclude)?);
     }
 
-    Ok(found
+    let mut out: Vec<PathBuf> = found
         .into_iter()
         .filter(|it| {
             let remove = match_exp
                 .iter()
-                .any(|re| re.matches_path(&it));
+                .any(|re| re.matches_path(it));
 
             if remove {
                 tracing::info!(
@@ -32,9 +31,12 @@ pub fn walk(source: &Source) -> super::Result<Vec<PathBuf>> {
 
             !remove
         })
-        .map(|it| {
+        .inspect(|it| {
             tracing::info!("including '{}' in targets", it.display());
-            it
         })
-        .collect())
+        .collect();
+
+    out.sort();
+
+    Ok(out)
 }

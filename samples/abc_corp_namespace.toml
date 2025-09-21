@@ -43,17 +43,6 @@ kind = "sized_array"
 size = 4
 type = "f32"
 
-[enums.some_enum]
-name = "some_enum"
-namespace = "abc.corp.namespace"
-description = "some enum description"
-version = 1
+[enums]
 
-[enums.some_enum.variants.A]
-name = "A"
-value = 1
-
-[enums.some_enum.variants.B]
-name = "B"
-description = "Some b variant = 2"
-value = 2
+[one_ofs]

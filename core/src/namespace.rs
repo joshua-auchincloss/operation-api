@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use convert_case::Casing;
 
-use crate::{Contigious, Definitions, Enum, Field, FieldOrRef, Ident, Operation, Struct, Version};
+use crate::{
+    Contigious, Definitions, Enum, Field, FieldOrRef, Ident, OneOf, Operation, Struct, Version,
+};
 
 #[cfg(feature = "generate")]
 use crate::generate::LanguageTrait;
@@ -33,6 +35,7 @@ pub struct Namespace {
     pub ops: BTreeMap<Ident, Operation>,
     pub defs: BTreeMap<Ident, Struct>,
     pub enums: BTreeMap<Ident, Enum>,
+    pub one_ofs: BTreeMap<Ident, OneOf>,
 }
 
 impl Namespace {
@@ -44,6 +47,7 @@ impl Namespace {
             ops: Default::default(),
             defs: Default::default(),
             enums: Default::default(),
+            one_ofs: Default::default(),
         }
     }
 
@@ -98,6 +102,15 @@ impl Namespace {
                     "enum",
                 )?;
             },
+            Definitions::OneOfV1(one) => {
+                unique_ns_def(
+                    &mut self.one_ofs,
+                    one.meta.name.clone(),
+                    &self.name,
+                    one,
+                    "one_of",
+                )?;
+            },
             // note: this is an internal error
             Definitions::NamespaceV1(ns) => {
                 return Err(crate::Error::NamespaceConflict {
@@ -142,7 +155,7 @@ impl Namespace {
                 match field {
                     FieldOrRef::Value(..) => {},
                     FieldOrRef::Ref { to } => {
-                        if let Some(local_ref) = def.fields.get(&to) {
+                        if let Some(local_ref) = def.fields.get(to) {
                             swap.push((field_name.clone(), local_ref.clone()));
                         } else {
                             swap.push((
@@ -156,7 +169,7 @@ impl Namespace {
 
             for (name, field) in swap {
                 self.defs
-                    .get_mut(&def_name)
+                    .get_mut(def_name)
                     .unwrap()
                     .fields
                     .insert(name, field);
@@ -196,6 +209,9 @@ impl Namespace {
         }
         for enums in other.enums.into_values() {
             self.with_definition(Definitions::EnumV1(enums))?;
+        }
+        for one in other.one_ofs.into_values() {
+            self.with_definition(Definitions::OneOfV1(one))?;
         }
         for fields in other.fields.into_values() {
             self.with_definition(Definitions::FieldV1(fields))?;

@@ -34,13 +34,13 @@ namespace! {
 #[test]
 fn smoke_basic_with_readme() {
     smoke_basic::<BasicStructWithReadme, _>("../samples/test-struct-readme.toml", |ser| {
-        insta::assert_yaml_snapshot!(ser)
+        operation_api_testing::assert_yaml_snapshot!(ser)
     })
 }
 
 #[test]
 fn smoke_basic_with_text() {
     smoke_basic::<BasicStruct, _>("../samples/test-struct-text.toml", |ser| {
-        insta::assert_yaml_snapshot!(ser)
+        operation_api_testing::assert_yaml_snapshot!(ser)
     })
 }

@@ -31,13 +31,13 @@ namespace! {
 #[test]
 fn test_basic_str_enum() {
     smoke_basic::<BasicStrEnum, _>("../samples/test-str-enum.toml", |ser| {
-        insta::assert_yaml_snapshot!(ser)
+        operation_api_testing::assert_yaml_snapshot!(ser)
     })
 }
 
 #[test]
 fn test_basic_int_enum() {
     smoke_basic::<BasicIntEnum, _>("../samples/test-enum.toml", |ser| {
-        insta::assert_yaml_snapshot!(ser)
+        operation_api_testing::assert_yaml_snapshot!(ser)
     })
 }

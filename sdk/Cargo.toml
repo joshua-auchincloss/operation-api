@@ -12,8 +12,8 @@ operation-api-derives = { path = "../derives" }
 serde_repr = "*"
 
 [dev-dependencies]
+operation-api-testing = { path = "../testing" }
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
 serde_yaml.workspace = true
-insta = { workspace = true, features = ["yaml"] }

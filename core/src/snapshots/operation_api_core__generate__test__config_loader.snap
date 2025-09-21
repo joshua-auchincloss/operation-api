@@ -2,6 +2,45 @@
 source: core/src/generate.rs
 expression: ctx.namespaces
 ---
+abc.corp.exts:
+  name: abc.corp.exts
+  version: 1
+  fields: {}
+  ops: {}
+  defs:
+    StructWithOneOf:
+      name: StructWithOneOf
+      namespace: abc.corp.exts
+      description: ~
+      version: 1
+      fields:
+        my_flag:
+          name: my_flag
+          namespace: abc.corp.exts
+          description: ~
+          version: ~
+          type:
+            compound_type:
+              kind: one_of
+              ref: MaybeFlagType
+          optional: false
+  enums: {}
+  one_ofs:
+    MaybeFlagType:
+      name: MaybeFlagType
+      namespace: abc.corp.exts
+      description: ~
+      version: 1
+      variants:
+        BoolFlag:
+          name: BoolFlag
+          ty: never
+        Int:
+          name: Int
+          ty: i32
+        Str:
+          name: Str
+          ty: string
 abc.corp.namespace:
   name: abc.corp.namespace
   version: 1
@@ -58,25 +97,8 @@ abc.corp.namespace:
                   size: 4
                   type: f32
           optional: false
-  enums:
-    some_enum:
-      name: some_enum
-      namespace: abc.corp.namespace
-      description: some enum description
-      version: 1
-      variants:
-        A:
-          name: A
-          namespace: ~
-          description: ~
-          version: ~
-          value: 1
-        B:
-          name: B
-          namespace: ~
-          description: Some b variant = 2
-          version: ~
-          value: 2
+  enums: {}
+  one_ofs: {}
 abc.corp.test:
   name: abc.corp.test
   version: 1
@@ -160,4 +182,53 @@ abc.corp.test:
               kind: enum
               ref: SomeEnum
           optional: false
-  enums: {}
+  enums:
+    BasicIntEnum:
+      name: BasicIntEnum
+      namespace: abc.corp.test
+      description: some int based enum
+      version: 1
+      variants:
+        A:
+          name: A
+          namespace: abc.corp.test
+          description: ~
+          version: ~
+          value: 0
+        B:
+          name: B
+          namespace: abc.corp.test
+          description: B is 99
+          version: ~
+          value: 99
+    BasicStrEnum:
+      name: BasicStrEnum
+      namespace: abc.corp.test
+      description: ~
+      version: 1
+      variants:
+        A:
+          name: A
+          namespace: abc.corp.test
+          description: ~
+          version: ~
+          value: a
+        B:
+          name: B
+          namespace: abc.corp.test
+          description: ~
+          version: ~
+          value: b
+    SomeEnum:
+      name: SomeEnum
+      namespace: abc.corp.test
+      description: ~
+      version: 1
+      variants:
+        A:
+          name: A
+          namespace: abc.corp.test
+          description: ~
+          version: ~
+          value: 0
+  one_ofs: {}

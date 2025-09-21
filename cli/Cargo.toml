@@ -20,3 +20,7 @@ human-panic = { version = "*", features = [] }
 
 tracing = { workspace = true, features = [] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+
+[dev-dependencies]
+operation-api-testing = { path = "../testing" }

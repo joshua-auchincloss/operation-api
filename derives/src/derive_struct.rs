@@ -3,7 +3,9 @@ use convert_case::{Case, Casing};
 use darling::FromDeriveInput;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::Ident;
+use syn::{Ident, spanned::Spanned};
+
+include!("macros.rs");
 
 #[derive(darling::FromField)]
 #[darling(attributes(fields))]
@@ -13,6 +15,9 @@ pub struct Field {
 
     #[darling(default)]
     enm: bool,
+
+    #[darling(default)]
+    one_of: bool,
 
     describe: Option<DescOrPath>,
 }
@@ -29,14 +34,23 @@ pub struct Struct {
 }
 
 pub fn derive_struct(tokens: TokenStream) -> TokenStream {
-    let s = Struct::from_derive_input(&syn::parse(tokens.into()).unwrap()).unwrap();
+    let input = call_span!(syn::parse(tokens.clone().into()));
+
+    let s = match Struct::from_derive_input(&input) {
+        Ok(s) => s,
+        Err(e) => return e.write_errors(),
+    };
 
     let desc = DescOrPath::resolve_defs(&s.ident, s.describe);
 
     let desc_value = desc.desc_value;
     let desc = desc.desc;
 
-    let fields = s.data.take_struct().unwrap().fields;
+    let fields = call_span!(
+        @opt s.data.take_struct();
+        syn::Error::new(s.ident.span(), "#[derive(Struct)] can only be used on structs")
+    )
+    .fields;
 
     let fields_map = quote!(
         let mut m = std::collections::BTreeMap::<_, _>::new();
@@ -44,43 +58,57 @@ pub fn derive_struct(tokens: TokenStream) -> TokenStream {
 
     let parent_iden = s.ident.clone();
 
-    let fields_def: TokenStream = fields
-        .iter()
-        .map(|field| {
-            let iden = field
-                .ident
-                .clone()
-                .expect("struct fields have idents");
-            let ty = field.ty.clone();
-            let iden_str = format!("{iden}");
+    if let Some(bad) = fields.iter().find(|f| f.ident.is_none()) {
+        let err: syn::Result<()> = Err(syn::Error::new(
+            bad.ty.span(),
+            "struct fields must be named (no tuple or unit fields)",
+        ));
+        call_span!(err);
+    }
 
-            let desc = DescOrPath::resolve_defs(&iden, field.describe.clone());
+    let mut fields_def = quote!();
+    for field in &fields {
+        let Some(iden) = field.ident.clone() else {
+            continue;
+        };
 
-            let desc_value = desc.desc_value;
-            let desc = desc.desc;
+        if field.enm && field.one_of {
+            return syn::Error::new(
+                field.ty.span(), "cannot have both enum and one_of types. if you are using a literal, use enum. if you are using type discriminants, use one_of."
+            ).into_compile_error();
+        }
 
-            let ty_clause = if field.enm {
-                quote!(@enm)
-            } else {
-                quote!()
-            };
+        let ty = field.ty.clone();
+        let iden_str = format!("{iden}");
 
-            quote!(
-                #desc
+        let desc = DescOrPath::resolve_defs(&iden, field.describe.clone());
 
-                m.insert(stringify!(#iden).into(), operation_api_core::Field{
-                    meta: operation_api_core::Meta {
-                        name: Some(#iden_str.into()),
-                        namespace: Some(#parent_iden::NAMESPACE.into()),
-                        description: #desc_value,
-                        version: None,
-                    },
-                    ty: operation_api_core::ty!(#ty_clause #ty),
-                    optional: false,
-                }.into());
-            )
-        })
-        .collect();
+        let desc_value = desc.desc_value;
+        let desc = desc.desc;
+
+        let ty_clause = if field.enm {
+            quote!(@enm)
+        } else if field.one_of {
+            quote!(@one_of)
+        } else {
+            quote!()
+        };
+
+        fields_def.extend(quote!(
+            #desc
+
+            m.insert(stringify!(#iden).into(), operation_api_core::Field{
+                meta: operation_api_core::Meta {
+                    name: Some(#iden_str.into()),
+                    namespace: Some(#parent_iden::NAMESPACE.into()),
+                    description: #desc_value,
+                    version: None,
+                },
+                ty: operation_api_core::ty!(#ty_clause #ty),
+                optional: false,
+            }.into());
+        ));
+    }
 
     let iden = s.ident.clone();
     let iden_lit = iden.to_string();

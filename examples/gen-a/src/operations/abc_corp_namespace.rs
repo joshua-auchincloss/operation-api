@@ -2,12 +2,12 @@
 #[fields(version = 2)]
 pub struct SomeStruct {
     #[serde(rename = "a")]
-    a: i32,
+    pub a: i32,
     #[serde(rename = "b")]
-    b: f32,
+    pub b: f32,
     #[serde(rename = "c")]
-    c: [[f32; 4]; 4],
+    pub c: [[f32; 4]; 4],
     #[serde(rename = "d")]
-    d: [[f32; 4]; 4],
+    pub d: [[f32; 4]; 4],
 }
 operation_api_core::namespace! { "abc.corp.namespace" { SomeStruct , } }

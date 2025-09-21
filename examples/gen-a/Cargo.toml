@@ -12,7 +12,7 @@ serde = "*"
 
 
 [dev-dependencies]
+operation-api-testing = { path = "../../testing" }
 toml.workspace = true
 serde_json.workspace = true
 paste.workspace = true
-insta = { workspace = true, features = ["yaml"] }

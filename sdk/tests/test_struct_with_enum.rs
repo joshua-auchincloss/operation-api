@@ -26,13 +26,13 @@ namespace! {
 #[test]
 fn test_some_struct_with_enum() {
     smoke_basic::<SomeStructWithEnum, _>("../samples/test-struct-with-enum.toml", |ser| {
-        insta::assert_yaml_snapshot!(ser)
+        operation_api_testing::assert_yaml_snapshot!(ser)
     })
 }
 
 #[test]
 fn test_some_enum_in_struct() {
     smoke_basic::<SomeEnum, _>("../samples/test-enum-in-struct.toml", |ser| {
-        insta::assert_yaml_snapshot!(ser)
+        operation_api_testing::assert_yaml_snapshot!(ser)
     })
 }

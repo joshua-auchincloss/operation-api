@@ -4,8 +4,11 @@ targets = ["client", "server", "types"]
 [sources]
 include = [
     "../samples/basic-op.toml",
-    "../samples/basic-enum.toml",
     "../samples/basic-struct.toml",
+    "../samples/test-enum.toml",
+    "../samples/test-str-enum.toml",
+    "../samples/test-enum-in-struct.toml",
+    "../samples/test-one-of.toml",
     "../samples/test-struct*.toml",
 ]
 exclude = ["*basic-op*"]
@@ -14,9 +17,12 @@ exclude = ["*basic-op*"]
 [[sources.remote]]
 url = "http://localhost:9009/dynamic.toml"
 
+[rust.vis]
+default = "public"
+
+[rust.vis.overrides."abc.corp.test"]
+BasicStruct = "crate"
+
 
 [rust]
-output-dir = "../samples/gen-a"
-
-
-[rust.opts]
+output-dir = "examples/gen-a/src/operations"

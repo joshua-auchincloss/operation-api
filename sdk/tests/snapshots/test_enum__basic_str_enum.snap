@@ -2,4 +2,21 @@
 source: sdk/tests/test_enum.rs
 expression: ser
 ---
-"type = \"enum@v1\"\nname = \"BasicStrEnum\"\nnamespace = \"abc.corp.test\"\nversion = 1\n\n[variants.A]\nname = \"A\"\nnamespace = \"abc.corp.test\"\nvalue = \"a\"\n\n[variants.B]\nname = \"B\"\nnamespace = \"abc.corp.test\"\nvalue = \"b\"\n"
+type: enum@v1
+name: BasicStrEnum
+namespace: abc.corp.test
+description: ~
+version: 1
+variants:
+  A:
+    name: A
+    namespace: abc.corp.test
+    description: ~
+    version: ~
+    value: a
+  B:
+    name: B
+    namespace: abc.corp.test
+    description: ~
+    version: ~
+    value: b

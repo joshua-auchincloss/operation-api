@@ -1,3 +1,5 @@
+#![allow(clippy::iter_kv_map)]
+
 pub mod context;
 
 pub mod namespace;
@@ -35,6 +37,11 @@ macro_rules! ty {
     };
     (@enm $t: path) => {
         $crate::Type::CompoundType($crate::CompoundType::Enum {
+            to: stringify!($t).into(),
+        })
+    };
+    (@one_of $t: path) => {
+        $crate::Type::CompoundType($crate::CompoundType::OneOf {
             to: stringify!($t).into(),
         })
     };
@@ -83,11 +90,18 @@ pub enum Error {
     #[error("glob error: {0}")]
     Glob(#[from] glob::GlobError),
 
+    #[error("pattern error: {0}")]
+    GlobPattern(#[from] glob::PatternError),
+
     #[error("[{src}] {error}")]
     SourceFile { error: Box<Self>, src: String },
 
     #[error("'{ident}' is not contigious with {desc}")]
     ContigiousError { ident: Ident, desc: String },
+
+    #[cfg(feature = "generate")]
+    #[error("{0}")]
+    Validation(#[from] validator::ValidationErrors),
 }
 
 impl Error {

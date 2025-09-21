@@ -8,21 +8,21 @@ pub enum LogLevel {
     Warn,
 }
 
-impl Into<tracing::Level> for LogLevel {
-    fn into(self) -> tracing::Level {
-        match self {
-            Self::Debug => tracing::Level::DEBUG,
-            Self::Trace => tracing::Level::TRACE,
-            Self::Info => tracing::Level::INFO,
-            Self::Error => tracing::Level::ERROR,
-            Self::Warn => tracing::Level::WARN,
+impl From<LogLevel> for tracing::Level {
+    fn from(val: LogLevel) -> Self {
+        match val {
+            LogLevel::Debug => tracing::Level::DEBUG,
+            LogLevel::Trace => tracing::Level::TRACE,
+            LogLevel::Info => tracing::Level::INFO,
+            LogLevel::Error => tracing::Level::ERROR,
+            LogLevel::Warn => tracing::Level::WARN,
         }
     }
 }
 
 #[derive(clap::Parser, Debug, Clone)]
 pub struct Cli {
-    #[clap(long, global = true, default_value = "info", env)]
+    #[clap(long, global = true, default_value = "info", env = "LOG_LEVEL")]
     pub log_level: LogLevel,
 
     #[clap(subcommand)]

@@ -7,6 +7,8 @@ use syn::{Ident, LitStr, Visibility, braced, parse::Parse};
 
 use crate::shared::ident;
 
+include!("macros.rs");
+
 struct Attributes {
     src: PathBuf,
 }
@@ -52,42 +54,77 @@ pub fn generate_module(
     attr: TokenStream,
     tokens: TokenStream,
 ) -> TokenStream {
-    let atts: Attributes = syn::parse2(attr).unwrap();
-    let module: Module = syn::parse2(tokens).unwrap();
+    let atts: Attributes = call_span!(syn::parse2(attr));
+    let module: Module = call_span!(syn::parse2(tokens));
+    let src = call_span!(
+        std::env::current_dir(); |e| syn::Error::new(
+            Span::call_site(),
+            format!("cwd error: {e}"),
+        )
+    )
+    .join(atts.src);
 
-    let src = std::env::current_dir()
-        .expect("cwd")
-        .join(&atts.src);
-
-    let mut conf =
-        GenerationConfig::new(Some(src.display().to_string().as_str())).expect("generation config");
+    let mut conf = match GenerationConfig::new(Some(src.display().to_string().as_str())) {
+        Ok(c) => c,
+        Err(e) => {
+            let err: syn::Result<()> = Err(syn::Error::new(
+                Span::call_site(),
+                format!("generation config error: {e}"),
+            ));
+            call_span!(err);
+            unreachable!();
+        },
+    };
 
     conf.set_mem(true);
 
-    let generation = Generation::new(conf).expect("context");
+    let generation = match Generation::new(conf) {
+        Ok(g) => g,
+        Err(e) => {
+            let err: syn::Result<()> = Err(syn::Error::new(
+                Span::call_site(),
+                format!("context error: {e}"),
+            ));
+            call_span!(err);
+            unreachable!();
+        },
+    };
 
     let collector = MemCollector::new();
 
-    generation
-        .generate_all_sync(Some(collector.mem_flush()))
-        .expect("generate sync");
+    if let Err(e) = generation.generate_all_sync(Some(collector.mem_flush())) {
+        let err: syn::Result<()> = Err(syn::Error::new(
+            Span::call_site(),
+            format!("generate error: {e}"),
+        ));
+        call_span!(err);
+    }
 
     let generated = collector.files();
 
     let mut outputs = quote!();
 
     for (entry, data) in generated.iter() {
-        let data = String::from_utf8_lossy(&data);
+        let data = String::from_utf8_lossy(data);
         // we can use the file name as the mod name as we already converted to form when generating
-        let mod_name = ident(
-            entry
-                .file_name()
-                .expect("file name")
-                .to_str()
-                .unwrap()
-                .replace(".rs", ""),
-        );
-        let mod_data: TokenStream = syn::parse_str(&data).expect("parse str");
+        let Some(file_name) = entry.file_name() else {
+            let err: syn::Result<()> = Err(syn::Error::new(
+                Span::call_site(),
+                "generated file path missing file_name",
+            ));
+            call_span!(err);
+            unreachable!();
+        };
+        let Some(file_name) = file_name.to_str() else {
+            let err: syn::Result<()> = Err(syn::Error::new(
+                Span::call_site(),
+                "generated file name not valid UTF-8",
+            ));
+            call_span!(err);
+            unreachable!();
+        };
+        let mod_name = ident(file_name.replace(".rs", ""));
+        let mod_data: TokenStream = call_span!(syn::parse_str(&data));
         outputs.extend(quote! {
             pub mod #mod_name {
                 #mod_data

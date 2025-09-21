@@ -6,6 +6,8 @@ use syn::{Expr, Ident, Lit, LitStr};
 
 use crate::shared::*;
 
+include!("macros.rs");
+
 #[derive(darling::FromVariant)]
 #[darling(attributes(fields))]
 pub struct Field {
@@ -31,15 +33,21 @@ pub struct Enum {
 }
 
 pub fn derive_enum(tokens: TokenStream) -> TokenStream {
-    let s = Enum::from_derive_input(&syn::parse(tokens.into()).expect("syn parse"))
-        .expect("darling parse");
+    let input = call_span!(syn::parse(tokens.clone().into()));
+    let s = match Enum::from_derive_input(&input) {
+        Ok(s) => s,
+        Err(e) => return e.write_errors(),
+    };
 
     let desc = DescOrPath::resolve_defs(&s.ident, s.describe);
 
     let desc_value = desc.desc_value;
     let desc = desc.desc;
 
-    let fields = s.data.take_enum().expect("enum");
+    let fields = call_span!(
+        @opt s.data.take_enum();
+        syn::Error::new(s.ident.span(), "#[derive(Enum)] can only be used on enums")
+    );
 
     let fields_map = quote!(
         let mut m = std::collections::BTreeMap::<_, _>::new();

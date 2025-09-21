@@ -84,9 +84,10 @@ pub enum CompoundType {
         #[serde(rename = "ref")]
         to: Ident,
     },
-    // OneOf {
-    //     one_of: Ident,
-    // },
+    OneOf {
+        #[serde(rename = "ref")]
+        to: Ident,
+    },
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
@@ -114,6 +115,8 @@ pub enum Type {
     String,
 
     Binary,
+
+    Never,
 
     CompoundType(CompoundType),
 }
@@ -146,6 +149,7 @@ pub struct Field<Ns> {
 }
 
 impl Type {
+    #[allow(clippy::only_used_in_recursion)]
     #[cfg(feature = "generate")]
     pub fn ty(
         &self,
@@ -174,10 +178,15 @@ impl Type {
 
             Type::DateTime => quote::quote!(chrono::DateTime::<chrono::Utc>),
 
+            Type::Never => quote::quote!(),
             Type::CompoundType(outer_ty) => {
                 match outer_ty {
                     CompoundType::Enum { to } => {
-                        let as_rs_ref = super::generate::rust::ident(&to.to_string());
+                        let as_rs_ref = super::generate::rust::ident(to.to_string());
+                        quote::quote!(#as_rs_ref)
+                    },
+                    CompoundType::OneOf { to } => {
+                        let as_rs_ref = super::generate::rust::ident(to.to_string());
                         quote::quote!(#as_rs_ref)
                     },
                     CompoundType::Array { ty } => {
@@ -199,10 +208,6 @@ impl Type {
                             [#inner; #size]
                         )
                     },
-                    // CompoundType::OneOf { one_of } => {
-                    //     let ident = crate::generate::rust::ident(s)
-                    //     quote::quote!(#one_of)
-                    // },
                 }
             },
         }
@@ -210,12 +215,8 @@ impl Type {
 
     pub fn rust_attrs(&self) -> proc_macro2::TokenStream {
         match self {
-            Self::CompoundType(ty) => {
-                match ty {
-                    CompoundType::Enum { .. } => quote::quote!(#[fields(enm)]),
-                    _ => quote::quote! {},
-                }
-            },
+            Self::CompoundType(CompoundType::Enum { .. }) => quote::quote!(#[fields(enm)]),
+            Self::CompoundType(CompoundType::OneOf { .. }) => quote::quote!(#[fields(one_of)]),
             _ => quote::quote! {},
         }
     }
@@ -248,7 +249,7 @@ impl<T> From<T> for Reffable<T> {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, Default)]
 pub struct Named<T>(BTreeMap<Ident, T>);
 
 pub type FieldsList = Named<FieldOrRef>;
@@ -396,6 +397,20 @@ pub struct Enum {
     pub variants: Named<VariantKind>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, bon::Builder, Clone)]
+pub struct OneOfVariant {
+    pub name: Ident,
+    pub ty: Type,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, bon::Builder, Clone)]
+pub struct OneOf {
+    #[serde(flatten)]
+    pub meta: Meta<Ident, Ident, Version>,
+
+    pub variants: Named<OneOfVariant>,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
 #[serde(tag = "type")]
 pub enum Definitions {
@@ -410,6 +425,9 @@ pub enum Definitions {
 
     #[serde(rename = "enum@v1", alias = "enum")]
     EnumV1(Enum),
+
+    #[serde(rename = "one_of@v1", alias = "one_of")]
+    OneOfV1(OneOf),
 
     #[serde(rename = "namespace@v1", alias = "namespace")]
     NamespaceV1(Namespace),
@@ -431,6 +449,7 @@ impl Definitions {
             Self::StructV1(v) => &v.meta.name,
             Self::OperationV1(v) => &v.meta.name,
             Self::EnumV1(v) => &v.meta.name,
+            Self::OneOfV1(v) => &v.meta.name,
             Self::NamespaceV1(ns) => &ns.name,
         }
     }
@@ -441,6 +460,7 @@ impl Definitions {
             Self::StructV1(v) => &v.meta.namespace,
             Self::OperationV1(v) => &v.meta.namespace,
             Self::EnumV1(v) => &v.meta.namespace,
+            Self::OneOfV1(v) => &v.meta.namespace,
             Self::NamespaceV1(ns) => &ns.name,
         }
     }
@@ -462,15 +482,23 @@ impl Definitions {
         w: &mut W,
         ext: &str,
     ) -> crate::Result<()> {
-        Ok(match ext {
+        let _: () = match ext {
             "yaml" | "yml" => serde_yaml::to_writer(w, self)?,
             "json" => serde_json::to_writer(w, self)?,
             "toml" => {
-                w.write(toml::to_string(self)?.as_bytes())?;
+                let buf = toml::to_string(self)?.as_bytes().to_vec();
+                let wrote = w.write(&buf)?;
+                if wrote != buf.len() {
+                    return Err(crate::Error::Io(std::io::Error::new(
+                        std::io::ErrorKind::WriteZero,
+                        "failed to write toml file",
+                    )));
+                }
                 w.flush()?;
             },
             ext => unimplemented!("{ext} is not implemented"),
-        })
+        };
+        Ok(())
     }
 
     pub fn load_from_path(path: PathBuf) -> crate::Result<Self> {

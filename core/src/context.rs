@@ -2,15 +2,14 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use crate::{Definitions, Ident, namespace::Namespace};
 
+#[derive(Default)]
 pub struct Context {
     pub namespaces: BTreeMap<Ident, Namespace>,
 }
 
 impl Context {
     pub fn new() -> Self {
-        Self {
-            namespaces: Default::default(),
-        }
+        Self::default()
     }
 
     pub fn finish(&mut self) -> crate::Result<()> {
@@ -41,12 +40,12 @@ impl Context {
         &mut self,
         ns: &Ident,
     ) -> &mut Namespace {
-        if !self.namespaces.contains_key(&ns) {
+        if !self.namespaces.contains_key(ns) {
             self.namespaces
                 .insert(ns.clone(), Namespace::new(ns.clone()));
         }
 
-        self.namespaces.get_mut(&ns).unwrap()
+        self.namespaces.get_mut(ns).unwrap()
     }
 
     pub fn with_definition(
@@ -55,14 +54,15 @@ impl Context {
     ) -> crate::Result<()> {
         match def {
             Definitions::NamespaceV1(ns) => {
-                Ok(match self.namespaces.get_mut(&ns.name) {
+                match self.namespaces.get_mut(&ns.name) {
                     Some(value) => {
                         value.merge(ns)?;
                     },
                     None => {
                         self.namespaces.insert(ns.name.clone(), ns);
                     },
-                })
+                };
+                Ok(())
             },
             def => {
                 self.get_or_create_ns(def.namespace())

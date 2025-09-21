@@ -2,4 +2,15 @@
 source: sdk/tests/test_struct_with_enum.rs
 expression: ser
 ---
-"type = \"enum@v1\"\nname = \"SomeEnum\"\nnamespace = \"abc.corp.test\"\nversion = 1\n\n[variants.A]\nname = \"A\"\nnamespace = \"abc.corp.test\"\nvalue = 0\n"
+type: enum@v1
+name: SomeEnum
+namespace: abc.corp.test
+description: ~
+version: 1
+variants:
+  A:
+    name: A
+    namespace: abc.corp.test
+    description: ~
+    version: ~
+    value: 0

@@ -1,0 +1,10 @@
+[package]
+name = "operation-api-testing"
+edition = "2024"
+publish = false
+version.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+insta = { workspace = true, features = ["yaml", "filters"] }

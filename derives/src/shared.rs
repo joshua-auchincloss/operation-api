@@ -5,7 +5,10 @@ use quote::{ToTokens, quote};
 use syn::Ident;
 
 pub fn ident<D: AsRef<str>>(s: D) -> Ident {
-    Ident::from_string(&s.as_ref()).expect("new ident")
+    match Ident::from_string(s.as_ref()) {
+        Ok(id) => id,
+        Err(_) => Ident::new("_invalid_ident", proc_macro2::Span::call_site()),
+    }
 }
 
 #[derive(darling::FromMeta, Clone)]
@@ -22,7 +25,7 @@ impl DescOrPath {
         let mut desc_iden: Option<Ident> = None;
 
         let desc = if let Some(desc) = this {
-            let iden = ident(&format!("{}_DESCRIPTION", parent).to_case(Case::UpperSnake));
+            let iden = ident(format!("{}_DESCRIPTION", parent).to_case(Case::UpperSnake));
             desc_iden = Some(iden.clone());
             quote! {
                 const #iden: &'static str = #desc;

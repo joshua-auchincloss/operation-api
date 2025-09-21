@@ -52,10 +52,13 @@ impl FileOrMem {
 
 impl Write for FileOrMem {
     fn flush(&mut self) -> std::io::Result<()> {
-        Ok(match self {
-            Self::File(f) => f.f.flush()?,
-            Self::Mem { flush, state } => (flush)(state),
-        })
+        match self {
+            Self::File(f) => f.f.flush(),
+            Self::Mem { flush, state } => {
+                let _: () = (flush)(state);
+                Ok(())
+            },
+        }
     }
 
     fn write(
@@ -87,15 +90,14 @@ impl WithFlush for FileOrMem {
     }
 }
 
+#[derive(Default)]
 pub struct MemCollector {
     files: Arc<Mutex<BTreeMap<PathBuf, Vec<u8>>>>,
 }
 
 impl MemCollector {
     pub fn new() -> Self {
-        Self {
-            files: Arc::default(),
-        }
+        Self::default()
     }
 
     pub fn mem_flush(&self) -> MemFlush {

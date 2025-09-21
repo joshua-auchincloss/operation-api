@@ -1,0 +1,41 @@
+#![allow(unused)]
+
+use operation_api_core::namespace;
+use operation_api_sdk::{OneOf, Struct};
+
+include!("shared.rs");
+
+#[derive(OneOf)]
+#[fields(version = 1)]
+pub enum MaybeFlagType {
+    Int(i32),
+    Str(String),
+    BoolFlag,
+}
+
+#[derive(Struct)]
+#[fields(version = 1)]
+pub struct StructWithOneOf {
+    #[fields(one_of)]
+    my_flag: MaybeFlagType,
+}
+
+namespace! {
+    "abc.corp.exts" {
+        MaybeFlagType, StructWithOneOf
+    }
+}
+
+#[test]
+fn test_one_of() {
+    smoke_basic::<MaybeFlagType, _>("../samples/test-one-of.toml", |ser| {
+        operation_api_testing::assert_yaml_snapshot!(ser);
+    });
+}
+
+#[test]
+fn test_struct_with_one_of() {
+    smoke_basic::<StructWithOneOf, _>("../samples/test-struct-with-one-of.toml", |ser| {
+        operation_api_testing::assert_yaml_snapshot!(ser);
+    });
+}

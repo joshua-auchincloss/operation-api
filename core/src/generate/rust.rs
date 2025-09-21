@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, io::Write, path::PathBuf};
+use std::{collections::BTreeMap, io::Write, path::Path};
 
 use convert_case::Casing;
 use proc_macro2::TokenStream;
@@ -28,26 +28,29 @@ pub(crate) struct RustGenState {}
 
 impl Generate<RustGenState, RustConfig> for RustGenerator {
     #[allow(unused)]
-    fn on_create<'s>(
-        state: &WithNsContext<'s, RustGenState, RustConfig, Self>,
-        fname: &PathBuf,
+    fn on_create(
+        state: &WithNsContext<'_, RustGenState, RustConfig, Self>,
+        fname: &Path,
         f: &mut Box<dyn WithFlush>,
     ) -> std::io::Result<()> {
         Ok(())
     }
 
     #[allow(unused)]
-    fn with_all_namespaces<'ns>(
+    fn with_all_namespaces(
         &self,
         ctx: &crate::context::Context,
-        opts: &'ns GenOpts<RustConfig>,
-        ctx_ns: BTreeMap<crate::Ident, WithNsContext<'ns, RustGenState, RustConfig, Self>>,
+        opts: &GenOpts<RustConfig>,
+        ctx_ns: BTreeMap<crate::Ident, WithNsContext<'_, RustGenState, RustConfig, Self>>,
     ) -> super::Result<()> {
         for ns in ctx.namespaces.values() {
             let ctx = ctx_ns.get(&ns.name).unwrap();
             let mut tt = quote!();
+
             let mut keys = ctx.ns.defs.keys().collect::<Vec<_>>();
+
             keys.append(&mut ctx.ns.enums.keys().collect());
+            keys.append(&mut ctx.ns.one_ofs.keys().collect());
             for it in keys {
                 let created = def_ident(it.clone());
                 tt.extend(quote!(
@@ -62,17 +65,17 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
     }
 
     #[allow(unused)]
-    fn new_state<'ns>(
-        &'ns self,
+    fn new_state(
+        &self,
         opts: &GenOpts<RustConfig>,
     ) -> RustGenState {
         RustGenState {}
     }
 
     #[allow(unused)]
-    fn gen_operation<'ns>(
+    fn gen_operation(
         &self,
-        state: &WithNsContext<'ns, RustGenState, RustConfig, Self>,
+        state: &WithNsContext<'_, RustGenState, RustConfig, Self>,
         def: &Operation,
     ) -> super::Result<()> {
         let ns_file = state.ns_file();
@@ -86,14 +89,19 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
     }
 
     #[allow(unused)]
-    fn gen_struct<'ns>(
+    fn gen_struct(
         &self,
-        state: &WithNsContext<'ns, RustGenState, RustConfig, Self>,
+        state: &WithNsContext<'_, RustGenState, RustConfig, Self>,
         def: &Struct,
     ) -> super::Result<()> {
         let ns_file = state.ns_file();
         let mut tt = quote::quote!();
 
+        let vis = state
+            .opts
+            .opts
+            .vis
+            .as_rust(state, &def.meta.name);
         let desc_comment = def.meta.doc_comment();
         let op_comment = def.meta.op_comment();
         let iden = def.meta.ident_as_pascal();
@@ -119,7 +127,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
                     #op_comment
                     #comment
                     #atts
-                    #f: #ty,
+                    #vis #f: #ty,
                 )
             })
         }
@@ -129,7 +137,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
             #[fields(version = #version)]
             #desc_comment
             #op_comment
-            pub struct #iden {
+            #vis struct #iden {
                 #fields
             }
         });
@@ -143,15 +151,21 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
         Ok(())
     }
 
-    fn gen_enum<'s>(
+    fn gen_enum(
         &self,
-        state: &WithNsContext<'s, RustGenState, RustConfig, Self>,
+        state: &WithNsContext<'_, RustGenState, RustConfig, Self>,
         def: &crate::Enum,
     ) -> super::Result<()> {
         let ns_file = state.ns_file();
         let mut tt = quote!();
 
         let name = def.meta.ident_as_pascal();
+        let vis = state
+            .opts
+            .opts
+            .vis
+            .as_rust(state, &def.meta.name);
+
         let doc_comment = def.meta.doc_comment();
         let op_comment = def.meta.op_comment();
         let version = def.meta.version();
@@ -213,7 +227,60 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
             #atts
             #doc_comment
             #op_comment
-            pub enum #name {
+            #vis enum #name {
+                #fields
+            }
+        });
+
+        state.with_file_handle(ns_file, |w| {
+            write!(w, "{tt}")?;
+            Ok(())
+        })?;
+        Ok(())
+    }
+
+    fn gen_one_of(
+        &self,
+        state: &WithNsContext<'_, RustGenState, RustConfig, Self>,
+        def: &crate::OneOf,
+    ) -> super::Result<()> {
+        let ns_file = state.ns_file();
+        let mut tt = quote!();
+
+        let vis = state
+            .opts
+            .opts
+            .vis
+            .as_rust(state, &def.meta.name);
+        let name = def.meta.ident_as_pascal();
+        let doc_comment = def.meta.doc_comment();
+        let op_comment = def.meta.op_comment();
+        let version = def.meta.version();
+
+        let fields: TokenStream = def
+            .variants
+            .iter()
+            .map(|(iden, var)| {
+                let iden = ident(
+                    iden.to_string()
+                        .to_case(convert_case::Case::Pascal),
+                );
+                let ty = var.ty.ty(&state.opts.opts);
+                if matches!(var.ty, crate::ty::Type::Never) {
+                    quote!(#iden,)
+                } else {
+                    quote!( #iden(#ty), )
+                }
+            })
+            .collect();
+
+        tt.extend(quote! {
+            #[derive(serde::Serialize, serde::Deserialize, operation_api_sdk::OneOf)]
+            #[serde(untagged)]
+            #[fields(version = #version)]
+            #doc_comment
+            #op_comment
+            #vis enum #name {
                 #fields
             }
         });
@@ -234,7 +301,7 @@ fn def_ident(def: crate::Ident) -> Ident {
 }
 
 pub(crate) fn ident<D: AsRef<str>>(s: D) -> Ident {
-    Ident::new(&s.as_ref(), proc_macro2::Span::call_site())
+    Ident::new(s.as_ref(), proc_macro2::Span::call_site())
 }
 
 pub(crate) fn lit(value: String) -> TokenStream {

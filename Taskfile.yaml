@@ -1,7 +1,16 @@
 version: "3"
 
+env:
+  LOG_LEVEL: trace
+
 tasks:
   gen-a:
-    cmds: 
+    cmds:
       - cargo run -- gen -d examples/gen-a
       - cargo +nightly fmt
+
+  config-sync:
+    cmd: sed 's/samples/..\/samples/g' examples/gen-a/op-gen.toml > samples/config-a/op-gen.toml
+
+  clean-snap:
+    cmd: rm -rf ./**/tests/snapshots/*.snap

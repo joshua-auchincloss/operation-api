@@ -15,15 +15,17 @@ use std::{
 use config::File;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::Deserialize;
+use validator::Validate;
 
 use crate::{
-    Enum, Error, Operation, Result, Struct,
+    Enum, Error, Ident, Named, OneOf, Operation, Result, Struct,
     context::Context,
+    default,
     generate::{
         context::WithNsContext,
         files::{MemFlush, WithFlush},
         remote::RemoteConfig,
-        rust::RustGenerator,
+        rust::{RustGenState, RustGenerator},
     },
 };
 
@@ -37,12 +39,14 @@ pub trait LanguageTrait {
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "snake_case")]
 pub enum Language {
     Rust,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "snake_case")]
 pub enum Target {
     Client,
@@ -50,25 +54,100 @@ pub enum Target {
     Types,
 }
 
-pub trait ConfigExt: Debug + PartialEq + Clone {}
+pub trait ConfigExt: Debug + PartialEq + Clone + Validate {}
 
-#[derive(Deserialize, PartialEq, Debug, Clone)]
+default!(
+    output_dir: PathBuf = "./".into()
+);
+
+#[derive(Deserialize, PartialEq, Debug, Clone, Validate)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "kebab-case")]
 pub struct GenOpts<Ext: ConfigExt> {
+    #[serde(default = "default_output_dir")]
     pub output_dir: PathBuf,
+
+    #[serde(flatten)]
+    #[validate(nested)]
     pub opts: Ext,
 
     #[serde(default)]
     pub mem: bool,
 }
 
-#[derive(Deserialize, PartialEq, Debug, Clone)]
+#[derive(Deserialize, PartialEq, Debug, Clone, Default)]
+#[cfg_attr(test, derive(serde::Serialize))]
+#[serde(rename_all = "snake_case")]
+pub enum Vis {
+    #[serde(alias = "local")]
+    Private,
+    Crate,
+    #[default]
+    #[serde(alias = "pub")]
+    Public,
+}
+
+/// this is a named mapping of namespace > ident > vis
+///
+/// e.g.
+/// ```yaml
+/// vis:
+///     default: crate
+///     abc.corp.test:
+///         PublicEnum: pub # or 'public'
+///         CrateStruct: crate
+///         ModOnlyStruct: private # or 'local'
+/// ```
+#[derive(Deserialize, PartialEq, Debug, Clone, Default, Validate)]
+#[cfg_attr(test, derive(serde::Serialize))]
+pub struct VisConfig {
+    #[serde(default)]
+    default: Vis,
+
+    #[serde(default)]
+    overrides: Named<Named<Vis>>,
+}
+
+impl Vis {
+    pub(crate) fn as_rust(&self) -> proc_macro2::TokenStream {
+        match self {
+            Self::Public => quote::quote!(pub),
+            Self::Crate => quote::quote!(pub(crate)),
+            Self::Private => quote::quote!(),
+        }
+    }
+}
+
+impl VisConfig {
+    pub(crate) fn as_rust(
+        &self,
+        ns: &WithNsContext<'_, RustGenState, RustConfig, RustGenerator>,
+        ident: &Ident,
+    ) -> proc_macro2::TokenStream {
+        match self
+            .overrides
+            .get(&ns.ns.name)
+            .map(|rule| rule.get(ident))
+        {
+            Some(Some(vis)) => vis.as_rust(),
+            _ => self.default.as_rust(),
+        }
+    }
+}
+
+#[derive(Deserialize, PartialEq, Debug, Clone, Validate)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "kebab-case")]
-pub struct RustConfig {}
+pub struct RustConfig {
+    #[serde(default)]
+    #[validate(nested)]
+    pub vis: VisConfig,
+}
 
 impl ConfigExt for RustConfig {}
 
-#[derive(Deserialize, PartialEq, Debug, Clone)]
+#[derive(Deserialize, PartialEq, Debug, Clone, Validate)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "kebab-case")]
 pub struct JsonSchemaConfig {}
 
@@ -78,9 +157,11 @@ crate::default!(
     Vec<Target>: { targets = vec![Target::Types] },
 );
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Validate)]
+#[cfg_attr(test, derive(serde::Serialize))]
 pub struct Source {
     #[serde(default)]
+    #[validate(nested)]
     remote: Vec<RemoteConfig>,
     #[serde(default)]
     include: Vec<String>,
@@ -88,18 +169,21 @@ pub struct Source {
     exclude: Vec<String>,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Validate)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "kebab-case")]
 pub struct GenerationConfig {
-    pub sources: Source,
-
     #[serde(default = "default_targets")]
     pub targets: Vec<Target>,
 
     #[serde(default)]
     pub languages: Vec<Language>,
 
+    #[validate(nested)]
+    pub sources: Source,
+
     #[serde(default)]
+    #[validate(nested)]
     pub rust: Option<GenOpts<RustConfig>>,
 }
 
@@ -111,47 +195,52 @@ impl GenerationConfig {
                 .join("op-gen")
                 .display()
         );
-        Ok(
-            config::ConfigBuilder::<config::builder::DefaultState>::default()
-                .add_source(File::with_name(&file_name).required(true))
-                .add_source(config::Environment::default().prefix("OP"))
-                .build()
-                .map_err(Error::from_with_source_init(file_name.clone()))?
-                .try_deserialize()
-                .map_err(Error::from_with_source_init(file_name.clone()))?,
-        )
+
+        let this: Self = config::ConfigBuilder::<config::builder::DefaultState>::default()
+            .add_source(File::with_name(&file_name).required(true))
+            .add_source(config::Environment::default().prefix("OP"))
+            .build()
+            .map_err(Error::from_with_source_init(file_name.clone()))?
+            .try_deserialize()
+            .map_err(Error::from_with_source_init(file_name.clone()))?;
+
+        this.validate()
+            .map_err(Error::from_with_source_init(file_name.clone()))?;
+
+        Ok(this)
     }
 }
 
 pub trait Generate<State: Sync + Send, Ext: ConfigExt + Sync + Send>
 where
     Self: LanguageTrait + Sized + Sync + Send, {
-    fn on_create<'s>(
-        state: &WithNsContext<'s, State, Ext, Self>,
-        fname: &PathBuf,
+    fn on_create(
+        state: &WithNsContext<'_, State, Ext, Self>,
+        fname: &Path,
         f: &mut Box<dyn WithFlush>,
     ) -> std::io::Result<()>;
 
-    fn new_state<'ns>(
+    fn new_state(
         &self,
-        opts: &'ns GenOpts<Ext>,
+        opts: &GenOpts<Ext>,
     ) -> State;
 
     #[allow(unused)]
-    fn with_all_namespaces<'ns>(
+    fn with_all_namespaces(
         &self,
         ctx: &Context,
-        opts: &'ns GenOpts<Ext>,
-        ctx_ns: BTreeMap<crate::Ident, WithNsContext<'ns, State, Ext, Self>>,
+        opts: &GenOpts<Ext>,
+        ctx_ns: BTreeMap<crate::Ident, WithNsContext<'_, State, Ext, Self>>,
     ) -> Result<()> {
         Ok(())
     }
 
-    fn gen_ctx<'ns>(
+    fn gen_ty_ctx(
         &self,
         ctx: &Context,
-        opts: &'ns GenOpts<Ext>,
+        opts: &GenOpts<Ext>,
         mem_flush: Option<MemFlush>,
+        root: &GenerationConfig,
     ) -> Result<()> {
         let state = Arc::new(self.new_state(opts));
         let mut ctx_ns = BTreeMap::new();
@@ -165,16 +254,22 @@ where
                 mem_flush.clone(),
             );
 
-            for def in ns.defs.values() {
-                self.gen_struct(&ns_ctx, def)?;
-            }
+            if root.targets.contains(&Target::Types) {
+                for def in ns.defs.values() {
+                    self.gen_struct(&ns_ctx, def)?;
+                }
 
-            for op in ns.ops.values() {
-                self.gen_operation(&ns_ctx, op)?;
-            }
+                for op in ns.ops.values() {
+                    self.gen_operation(&ns_ctx, op)?;
+                }
 
-            for enm in ns.enums.values() {
-                self.gen_enum(&ns_ctx, enm)?;
+                for enm in ns.enums.values() {
+                    self.gen_enum(&ns_ctx, enm)?;
+                }
+
+                for one in ns.one_ofs.values() {
+                    self.gen_one_of(&ns_ctx, one)?;
+                }
             }
 
             ctx_ns.insert(ns.name.clone(), ns_ctx);
@@ -185,22 +280,28 @@ where
         Ok(())
     }
 
-    fn gen_struct<'s>(
+    fn gen_struct(
         &self,
-        state: &WithNsContext<'s, State, Ext, Self>,
+        state: &WithNsContext<'_, State, Ext, Self>,
         def: &Struct,
     ) -> Result<()>;
 
-    fn gen_operation<'s>(
+    fn gen_operation(
         &self,
-        state: &WithNsContext<'s, State, Ext, Self>,
+        state: &WithNsContext<'_, State, Ext, Self>,
         def: &Operation,
     ) -> Result<()>;
 
-    fn gen_enum<'s>(
+    fn gen_enum(
         &self,
-        state: &WithNsContext<'s, State, Ext, Self>,
+        state: &WithNsContext<'_, State, Ext, Self>,
         def: &Enum,
+    ) -> Result<()>;
+
+    fn gen_one_of(
+        &self,
+        state: &WithNsContext<'_, State, Ext, Self>,
+        def: &OneOf,
     ) -> Result<()>;
 }
 
@@ -242,15 +343,28 @@ impl Generation {
         Ok(Self { config, ctx })
     }
 
+    fn wants_rust(&self) -> Option<&GenOpts<RustConfig>> {
+        if self
+            .config
+            .languages
+            .contains(&Language::Rust)
+            && let Some(rust) = &self.config.rust
+        {
+            Some(rust)
+        } else {
+            None
+        }
+    }
+
     pub fn generate_all_sync(
         &self,
         mem_flush: Option<MemFlush>,
     ) -> crate::Result<()> {
         let mut generators = vec![];
 
-        if let Some(rust) = &self.config.rust {
+        if let Some(rust) = self.wants_rust() {
             generators.push(Box::new(|| {
-                RustGenerator.gen_ctx(&self.ctx, rust, mem_flush.clone())
+                RustGenerator.gen_ty_ctx(&self.ctx, rust, mem_flush.clone(), &self.config)
             }));
         }
 
@@ -270,15 +384,14 @@ impl Generation {
         mem_flush: Option<MemFlush>,
     ) -> crate::Result<()> {
         let mut futs = vec![];
-        if let Some(rust) = &self.config.rust {
-            let generator = RustGenerator;
+        if let Some(rust) = self.wants_rust() {
             futs.push(Box::pin(async move {
-                generator.gen_ctx(&self.ctx, rust, mem_flush.clone())
+                RustGenerator.gen_ty_ctx(&self.ctx, rust, mem_flush.clone(), &self.config)
             }));
         }
 
         for fut in futs {
-            let _ = fut.await?;
+            fut.await?;
         }
 
         Ok(())
@@ -302,53 +415,76 @@ mod test {
         generate.generate_all_sync(Some(collector.mem_flush()))?;
 
         let state = collector.files();
-        assert_eq!(state.keys().len(), 2);
+        assert_eq!(state.keys().len(), 3);
 
         Ok(())
     }
 
     #[tokio::test]
     async fn test_config_loader() {
-        let conf = GenerationConfig::new(Some("../samples/config-a")).unwrap();
+        let mut conf = GenerationConfig::new(Some("../samples/config-a")).unwrap();
+
+        let overrides = [(
+            Ident::new("abc.corp.test"),
+            Named::<Vis>::new([(Ident::new("BasicStruct"), Vis::Crate)]),
+        )];
+
+        let expect = GenerationConfig {
+            targets: vec![Target::Client, Target::Server, Target::Types],
+            languages: vec![Language::Rust],
+            sources: Source {
+                remote: vec![RemoteConfig {
+                    url: "http://localhost:9009/dynamic.toml".into(),
+                    headers: Default::default(),
+                }],
+                include: vec![
+                    "../samples/basic-op.toml",
+                    "../samples/basic-struct.toml",
+                    "../samples/test-enum.toml",
+                    "../samples/test-str-enum.toml",
+                    "../samples/test-enum-in-struct.toml",
+                    "../samples/test-one-of.toml",
+                    "../samples/test-struct*.toml",
+                ]
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+                exclude: vec!["*basic-op*".into()],
+            },
+            rust: Some(GenOpts {
+                output_dir: "examples/gen-a/src/operations".into(),
+                opts: RustConfig {
+                    vis: VisConfig {
+                        default: Default::default(),
+                        overrides: Named::new(overrides),
+                    },
+                },
+                mem: false,
+            }),
+        };
 
         assert_eq! {
-            conf, GenerationConfig {
-                targets: vec![Target::Client, Target::Server, Target::Types],
-                languages: vec![Language::Rust],
-                sources: Source {
-                    remote: vec![
-                        RemoteConfig {
-                            url: "http://localhost:9009/dynamic.toml".into(),
-                            headers: Default::default()
-                        }
-                    ],
-                    include: vec![
-                        "../samples/basic-op.toml".into(),
-                        "../samples/basic-enum.toml".into(),
-                        "../samples/basic-struct.toml".into(),
-                        "../samples/test-struct*.toml".into()
-                    ],
-                    exclude: vec![
-                        "*basic-op*".into()
-                    ]
-                },
-                rust: Some(GenOpts{
-                    output_dir: "../samples/gen-a".into(),
-                    opts: RustConfig {  },
-                    mem: false
-                })
-            }
+            conf, expect
         }
+
+        let expect: Vec<_> = vec![
+            "../samples/basic-struct.toml",
+            "../samples/test-enum-in-struct.toml",
+            "../samples/test-enum.toml",
+            "../samples/test-one-of.toml",
+            "../samples/test-str-enum.toml",
+            "../samples/test-struct-readme.toml",
+            "../samples/test-struct-text.toml",
+            "../samples/test-struct-with-enum.toml",
+            "../samples/test-struct-with-one-of.toml",
+        ]
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
 
         assert_eq! {
             conf.sources().unwrap(),
-            vec![
-                PathBuf::from("../samples/basic-enum.toml"),
-                PathBuf::from("../samples/basic-struct.toml"),
-                PathBuf::from("../samples/test-struct-readme.toml"),
-                PathBuf::from("../samples/test-struct-text.toml"),
-                PathBuf::from("../samples/test-struct-with-enum.toml"),
-            ]
+            expect
         }
 
         let ctx = conf.get_ctx().unwrap();
@@ -361,9 +497,29 @@ mod test {
             .export("../samples/abc_corp_namespace.toml".into())
             .unwrap();
 
-        insta::assert_yaml_snapshot!(ctx.namespaces);
+        operation_api_testing::insta_test!(|| {
+            operation_api_testing::assert_yaml_snapshot!(ctx.namespaces);
+        });
 
+        conf.set_mem(true);
+
+        let collector = MemCollector::new();
         let generator = Generation::new(conf).unwrap();
-        generator.generate_all(None).await.unwrap();
+
+        generator
+            .generate_all(Some(collector.mem_flush()))
+            .await
+            .unwrap();
+
+        // operation_api_testing::insta_test!(|| {
+        //     let files: BTreeMap<PathBuf, String> = collector
+        //         .files()
+        //         .clone()
+        //         .into_iter()
+        //         .map(|(f, d)| (f, String::from_utf8_lossy(&d).to_string()))
+        //         .collect();
+
+        //     operation_api_testing::assert_yaml_snapshot!(files)
+        // });
     }
 }
