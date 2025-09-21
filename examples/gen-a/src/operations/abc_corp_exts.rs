@@ -2,7 +2,7 @@
 #[fields(version = 1)]
 pub struct StructWithOneOf {
     #[serde(rename = "my_flag")]
-    #[fields(enm)]
+    #[fields(one_of)]
     pub my_flag: MaybeFlagType,
 }
 #[derive(serde :: Serialize, serde :: Deserialize, operation_api_sdk :: OneOf)]
