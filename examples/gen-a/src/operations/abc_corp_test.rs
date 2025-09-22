@@ -61,4 +61,4 @@ pub enum BasicStrEnum {
 pub enum SomeEnum {
     A = 0,
 }
-operation_api_core::namespace! { "abc.corp.test" { BasicStruct , BasicStructWithReadme , SomeStructWithEnum , BasicIntEnum , BasicStrEnum , SomeEnum , } }
+operation_api_sdk::namespace! { "abc.corp.test" { BasicStruct , BasicStructWithReadme , SomeStructWithEnum , BasicIntEnum , BasicStrEnum , SomeEnum , } }

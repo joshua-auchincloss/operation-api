@@ -44,3 +44,16 @@ macro_rules! map {
 
     };
 }
+
+#[macro_export]
+macro_rules! trace_replace {
+    (
+        $before: ident; $after: expr
+    ) => {{
+        let new = $after;
+        if &new != $before {
+            tracing::info!("type simplification: {} -> {}", $before, new);
+        }
+        new
+    }};
+}

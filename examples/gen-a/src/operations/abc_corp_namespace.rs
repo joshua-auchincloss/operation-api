@@ -10,4 +10,4 @@ pub struct SomeStruct {
     #[serde(rename = "d")]
     pub d: [[f32; 4]; 4],
 }
-operation_api_core::namespace! { "abc.corp.namespace" { SomeStruct , } }
+operation_api_sdk::namespace! { "abc.corp.namespace" { SomeStruct , } }

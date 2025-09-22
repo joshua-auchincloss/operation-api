@@ -135,6 +135,22 @@ impl VisConfig {
     }
 }
 
+#[derive(Deserialize, PartialEq, Debug, Clone)]
+#[cfg_attr(test, derive(serde::Serialize))]
+pub enum DateTimeLibrary {
+    Chrono,
+    Time,
+}
+
+impl Default for DateTimeLibrary {
+    #[allow(unreachable_code, clippy::needless_return)]
+    fn default() -> Self {
+        #[cfg(all(not(feature = "chrono"), feature = "time"))]
+        return Self::Time;
+        return Self::Chrono;
+    }
+}
+
 #[derive(Deserialize, PartialEq, Debug, Clone, Validate)]
 #[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "kebab-case")]
@@ -142,6 +158,9 @@ pub struct RustConfig {
     #[serde(default)]
     #[validate(nested)]
     pub vis: VisConfig,
+
+    #[serde(default)]
+    pub time: DateTimeLibrary,
 }
 
 impl ConfigExt for RustConfig {}
@@ -458,6 +477,7 @@ mod test {
                         default: Default::default(),
                         overrides: Named::new(overrides),
                     },
+                    time: DateTimeLibrary::Chrono,
                 },
                 mem: false,
             }),
@@ -475,8 +495,10 @@ mod test {
             "../samples/test-str-enum.toml",
             "../samples/test-struct-readme.toml",
             "../samples/test-struct-text.toml",
+            "../samples/test-struct-with-chrono.toml",
             "../samples/test-struct-with-enum.toml",
             "../samples/test-struct-with-one-of.toml",
+            "../samples/test-struct-with-time.toml",
         ]
         .into_iter()
         .map(PathBuf::from)
@@ -510,16 +532,5 @@ mod test {
             .generate_all(Some(collector.mem_flush()))
             .await
             .unwrap();
-
-        // operation_api_testing::insta_test!(|| {
-        //     let files: BTreeMap<PathBuf, String> = collector
-        //         .files()
-        //         .clone()
-        //         .into_iter()
-        //         .map(|(f, d)| (f, String::from_utf8_lossy(&d).to_string()))
-        //         .collect();
-
-        //     operation_api_testing::assert_yaml_snapshot!(files)
-        // });
     }
 }

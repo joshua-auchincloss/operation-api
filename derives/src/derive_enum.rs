@@ -68,7 +68,7 @@ pub fn derive_enum(tokens: TokenStream) -> TokenStream {
             let desc = desc.desc;
             let value = match &field.str_value {
                 Some(value) => {
-                    quote!(operation_api_core::StrOrInt::String(#value.into()))
+                    quote!(operation_api_sdk::StrOrInt::String(#value.into()))
                 },
                 None => {
                     match field.discriminant.clone() {
@@ -79,7 +79,7 @@ pub fn derive_enum(tokens: TokenStream) -> TokenStream {
                                         Lit::Int(int) => {
                                             quote!({
                                                 let value: usize = #int;
-                                                operation_api_core::StrOrInt::Int(value)
+                                                operation_api_sdk::StrOrInt::Int(value)
                                             })
                                         },
                                         lit => panic!("{lit:#?} type is unsupported"),
@@ -88,7 +88,7 @@ pub fn derive_enum(tokens: TokenStream) -> TokenStream {
                                 _ => panic!("only lit exprs are permitted"),
                             }
                         },
-                        None => quote!(operation_api_core::StrOrInt::Int(#i)),
+                        None => quote!(operation_api_sdk::StrOrInt::Int(#i)),
                     }
                 },
             };
@@ -96,8 +96,8 @@ pub fn derive_enum(tokens: TokenStream) -> TokenStream {
             quote!(
                 #desc
 
-                m.insert(#iden_str.into(), operation_api_core::VariantKind{
-                    meta: operation_api_core::Meta {
+                m.insert(#iden_str.into(), operation_api_sdk::VariantKind{
+                    meta: operation_api_sdk::Meta {
                         name: #iden_str.into(),
                         namespace: Some(#parent_iden::NAMESPACE.into()),
                         description: #desc_value,
@@ -115,36 +115,36 @@ pub fn derive_enum(tokens: TokenStream) -> TokenStream {
     let iden_def = ident(format!("{iden}_DEF").to_case(Case::UpperSnake));
 
     let def = quote!(
-        static #iden_def: std::sync::LazyLock<operation_api_core::Definitions> = std::sync::LazyLock::new(|| {
-            use operation_api_core::namespace::OfNamespace;
+        static #iden_def: std::sync::LazyLock<operation_api_sdk::Definitions> = std::sync::LazyLock::new(|| {
+            use operation_api_sdk::OfNamespace;
 
             #fields_map
             #fields_def
 
-            const VERSION: operation_api_core::Version = operation_api_core::Version::new(#version);
-            operation_api_core::Definitions::EnumV1(operation_api_core::Enum{
-                meta: operation_api_core::Meta {
+            const VERSION: operation_api_sdk::Version = operation_api_sdk::Version::new(#version);
+            operation_api_sdk::Definitions::EnumV1(operation_api_sdk::Enum{
+                meta: operation_api_sdk::Meta {
                     name: #iden_lit.into(),
                     namespace: #iden::NAMESPACE.into(),
                     version: VERSION.into(),
                     description: #desc_value,
                 },
-                variants: operation_api_core::Named::new(m),
+                variants: operation_api_sdk::Named::new(m),
             })
         });
 
-        impl operation_api_core::Typed for #iden {
-            fn ty() -> operation_api_core::Type {
-                operation_api_core::Type::CompoundType(
-                    operation_api_core::CompoundType::Enum{
+        impl operation_api_sdk::Typed for #iden {
+            fn ty() -> operation_api_sdk::Type {
+                operation_api_sdk::Type::CompoundType(
+                    operation_api_sdk::CompoundType::Enum{
                         to: #iden_lit.into()
                     }
                 )
             }
         }
 
-        impl operation_api_core::Defined for #iden {
-            fn definition() -> &'static operation_api_core::Definitions {
+        impl operation_api_sdk::Defined for #iden {
+            fn definition() -> &'static operation_api_sdk::Definitions {
                 use std::ops::Deref;
                 #iden_def.deref()
             }

@@ -10,7 +10,7 @@ use convert_case::Casing;
 
 #[cfg(feature = "generate")]
 use crate::generate::RustConfig;
-use crate::namespace::Namespace;
+use crate::{namespace::Namespace, trace_replace};
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ident(String);
@@ -127,30 +127,145 @@ pub enum Type {
     CompoundType(CompoundType),
 }
 
+impl Display for CompoundType {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Array { ty } => format!("[{ty}]"),
+                Self::SizedArray { ty, size } => format!("[{ty}; {size}]"),
+                Self::Option { ty } => format!("{ty} | never"),
+                Self::Enum { to } => format!("{to}"),
+                Self::Struct { to } => format!("{to}"),
+                Self::OneOf { to } => format!("{to}"),
+            }
+        )
+    }
+}
+
+impl Display for Type {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::U8 => "u8".to_string(),
+                Self::U16 => "u16".to_string(),
+                Self::U32 => "u32".to_string(),
+                Self::U64 => "u64".to_string(),
+                Self::Usize => "usize".to_string(),
+                Self::I8 => "i8".to_string(),
+                Self::I16 => "i16".to_string(),
+                Self::I32 => "i32".to_string(),
+                Self::I64 => "i64".to_string(),
+                Self::F32 => "f32".to_string(),
+                Self::F64 => "f64".to_string(),
+                Self::Bool => "bool".to_string(),
+                Self::DateTime => "datetime".to_string(),
+                Self::Complex => "complex".to_string(),
+                Self::String => "string".to_string(),
+                Self::Never => "never".to_string(),
+                Self::Binary => "binary".to_string(),
+                Self::CompoundType(ty) => ty.to_string(),
+            }
+        )
+    }
+}
+
 impl Type {
     pub fn simplify(&self) -> Self {
         match self {
-            Type::CompoundType(ty) => {
-                match ty {
+            Type::CompoundType(orig) => {
+                match orig {
                     CompoundType::Option { ty } => {
                         match ty.as_ref() {
-                            Type::Never => Self::Never,
-                            Type::CompoundType(CompoundType::Option { ty }) => {
-                                Self::CompoundType(CompoundType::Option {
-                                    ty: Box::new(ty.simplify()),
+                            Type::Never => {
+                                Type::CompoundType(CompoundType::Option {
+                                    ty: Box::new(Self::Never),
                                 })
+                            },
+                            Type::CompoundType(CompoundType::Option { ty }) => {
+                                // flatten nested options and collapse to Never when inner is Array/SizedArray<Never>
+                                let inner = ty.simplify();
+                                match &inner {
+                                    Type::Never => {
+                                        trace_replace!(
+                                            self;
+                                            Self::CompoundType(CompoundType::Option {
+                                                ty: Box::new(Self::Never),
+                                            })
+                                        )
+                                    },
+                                    Type::CompoundType(CompoundType::Option { ty }) => {
+                                        trace_replace!(
+                                            self;
+                                            Self::CompoundType(CompoundType::Option {
+                                                ty: Box::new(ty.simplify()),
+                                            })
+                                        )
+                                    },
+                                    Type::CompoundType(CompoundType::Array { ty }) => {
+                                        trace_replace!(
+                                            self;
+                                            if let Type::Never = ty.as_ref() {
+                                                Self::Never
+                                            } else {
+                                                Self::CompoundType(CompoundType::Option {
+                                                    ty: Box::new(inner),
+                                                })
+                                            }
+                                        )
+                                    },
+                                    Type::CompoundType(CompoundType::SizedArray { ty, .. }) => {
+                                        trace_replace!(
+                                            self;
+                                            if let Type::Never = ty.as_ref() {
+                                                Self::Never
+                                            } else {
+                                                Self::CompoundType(CompoundType::Option {
+                                                    ty: Box::new(inner),
+                                                })
+                                            }
+                                        )
+                                    },
+                                    _ => {
+                                        Self::CompoundType(CompoundType::Option {
+                                            ty: Box::new(inner),
+                                        })
+                                    },
+                                }
                             },
                             rest => {
-                                Self::CompoundType(CompoundType::Option {
-                                    ty: Box::new(rest.simplify()),
-                                })
+                                trace_replace!(
+                                    self;
+                                    Self::CompoundType(CompoundType::Option {
+                                        ty: Box::new(rest.simplify()),
+                                    })
+                                )
                             },
+                        }
+                    },
+                    CompoundType::Array { ty } => {
+                        match ty.as_ref() {
+                            Self::U8 => {
+                                trace_replace!(
+                                    self; Self::Binary
+                                )
+                            },
+                            _ => self.clone(),
                         }
                     },
                     rest => Self::CompoundType(rest.clone()),
                 }
             },
-            rest => rest.clone(),
+            _ => self.clone(),
         }
     }
 }
@@ -229,13 +344,7 @@ impl<T: Typed, const S: usize> Typed for [T; S] {
 }
 
 #[cfg(feature = "chrono")]
-impl<Tz: chrono::TimeZone> Typed for chrono::DateTime<Tz> {
-    fn ty() -> Type {
-        Type::DateTime
-    }
-}
-
-impl Typed for std::time::Instant {
+impl Typed for chrono::DateTime<chrono::Utc> {
     fn ty() -> Type {
         Type::DateTime
     }
@@ -310,8 +419,30 @@ impl Type {
             Type::Binary => quote::quote!(Vec<u8>),
             Type::String => quote::quote!(String),
 
-            Type::DateTime => quote::quote!(chrono::DateTime::<chrono::Utc>),
+            Type::DateTime => {
+                use crate::generate::DateTimeLibrary;
 
+                match opts.time {
+                    DateTimeLibrary::Chrono => {
+                        cfg_if::cfg_if! {
+                            if #[cfg(feature = "chrono")] {
+                                quote::quote!(chrono::DateTime::<chrono::Utc>)
+                            } else {
+                                panic!("feature 'chrono' must be enabled to emit chrono::DateTime")
+                            }
+                        }
+                    },
+                    DateTimeLibrary::Time => {
+                        cfg_if::cfg_if! {
+                            if #[cfg(feature = "time")] {
+                                quote::quote!(time::UtcDateTime)
+                            } else {
+                                panic!("feature 'time' must be enabled to emit time::UtcDateTime")
+                            }
+                        }
+                    },
+                }
+            },
             Type::Never => quote::quote!(),
             Type::CompoundType(outer_ty) => {
                 match outer_ty {
@@ -572,15 +703,6 @@ pub enum Definitions {
 }
 
 impl Definitions {
-    // pub fn meta(&self) -> &Meta<Ident, usize> {
-    //     match self {
-    //         Self::FieldV1(field) => &field.meta,
-    //         Self::OperationV1(op) => &op.meta,
-    //         Self::StructV1(def) => &def.meta,
-    //         Self::EnumV1(enm) => &enm.meta,
-    //     }
-    // }
-
     pub fn name(&self) -> &Ident {
         match self {
             Self::FieldV1(v) => &v.meta.name,
@@ -657,5 +779,125 @@ impl Definitions {
             &mut std::fs::File::create(&path)?,
             path.extension().unwrap().to_str().unwrap(),
         )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{CompoundType, Type};
+    use test_case::test_case;
+
+    fn opt(inner: Type) -> Type {
+        Type::CompoundType(CompoundType::Option {
+            ty: Box::new(inner),
+        })
+    }
+
+    fn array(inner: Type) -> Type {
+        Type::CompoundType(CompoundType::Array {
+            ty: Box::new(inner),
+        })
+    }
+
+    fn sized_array(
+        inner: Type,
+        size: usize,
+    ) -> Type {
+        Type::CompoundType(CompoundType::SizedArray {
+            ty: Box::new(inner),
+            size,
+        })
+    }
+
+    fn nest_opts(
+        mut inner: Type,
+        count: usize,
+    ) -> Type {
+        for _ in 0..count {
+            inner = opt(inner);
+        }
+        inner
+    }
+
+    fn id(s: &str) -> super::Ident {
+        super::Ident::from(s.to_string())
+    }
+
+    #[test_case(Type::U8, Type::U8; "u8 stays u8")]
+    #[test_case(Type::String, Type::String; "string stays string")]
+    #[test_case(opt(Type::U8), opt(Type::U8); "single opt u8")]
+    #[test_case(opt(Type::Never), opt(Type::Never); "single opt never")]
+    #[test_case(opt(opt(Type::U8)), opt(Type::U8); "double opt u8 collapses")]
+    #[test_case(opt(opt(opt(Type::U8))), opt(Type::U8); "triple opt u8 collapses")]
+    #[test_case(nest_opts(Type::U16, 5), opt(Type::U16); "5 opts u16 collapse")]
+    #[test_case(nest_opts(Type::F64, 10), opt(Type::F64); "10 opts f64 collapse")]
+    #[test_case(nest_opts(Type::Never, 1), opt(Type::Never); "1 opt never")]
+    #[test_case(nest_opts(Type::Never, 2), opt(Type::Never); "2 opts never")]
+    #[test_case(nest_opts(Type::Never, 3), opt(Type::Never); "3 opts never")]
+    #[test_case(nest_opts(Type::Never, 4), opt(Type::Never); "4 opts never")]
+    #[test_case(nest_opts(Type::Never, 5), opt(Type::Never); "5 opts never")]
+    #[test_case(nest_opts(Type::Never, 6), opt(Type::Never); "6 opts never")]
+    #[test_case(nest_opts(Type::Never, 7), opt(Type::Never); "7 opts never")]
+    #[test_case(nest_opts(Type::Never, 8), opt(Type::Never); "8 opts never")]
+    #[test_case(nest_opts(Type::Never, 9), opt(Type::Never); "9 opts never")]
+    #[test_case(nest_opts(Type::Never, 10), opt(Type::Never); "10 opts never")]
+    #[test_case(array(Type::U8), Type::Binary; "vec u8 -> binary")]
+    #[test_case(array(opt(Type::U8)), array(opt(Type::U8)); "array of opt<u8> unchanged")]
+    #[test_case(opt(array(Type::U8)), opt(Type::Binary); "opt<array<u8>> to opt<binary>")]
+    #[test_case(sized_array(opt(Type::U8), 3), sized_array(opt(Type::U8), 3); "sized array of opt<u8> unchanged")]
+    #[test_case(opt(sized_array(opt(Type::U8), 3)), opt(sized_array(opt(Type::U8), 3)); "opt<sized array<opt<u8>>> unchanged")]
+    #[test_case(opt(opt(array(Type::Never))), Type::Never; "opt<opt<array<never>>> into never")]
+    fn ty_simplify_case(
+        input: Type,
+        expected: Type,
+    ) {
+        assert_eq!(input.simplify(), expected);
+    }
+
+    #[test_case(Type::U8, "u8"; "u8")]
+    #[test_case(Type::U16, "u16"; "u16")]
+    #[test_case(Type::U32, "u32"; "u32")]
+    #[test_case(Type::U64, "u64"; "u64")]
+    #[test_case(Type::Usize, "usize"; "usize")]
+    #[test_case(Type::I8, "i8"; "i8")]
+    #[test_case(Type::I16, "i16"; "i16")]
+    #[test_case(Type::I32, "i32"; "i32")]
+    #[test_case(Type::I64, "i64"; "i64")]
+    #[test_case(Type::F32, "f32"; "f32")]
+    #[test_case(Type::F64, "f64"; "f64")]
+    #[test_case(Type::Bool, "bool"; "bool")]
+    #[test_case(Type::String, "string"; "string")]
+    #[test_case(Type::DateTime, "datetime"; "datetime")]
+    #[test_case(Type::Complex, "complex"; "complex")]
+    #[test_case(Type::Never, "never"; "never")]
+    #[test_case(Type::Binary, "binary"; "binary")]
+    #[test_case(array(Type::U8), "[u8]"; "array u8")]
+    #[test_case(array(Type::String), "[string]"; "array string")]
+    #[test_case(sized_array(Type::I16, 4), "[i16; 4]"; "sized array i16")]
+    #[test_case(opt(Type::U32), "u32 | never"; "opt u32")]
+    #[test_case(opt(opt(Type::U8)), "u8 | never | never"; "nested opt u8")]
+    #[test_case(opt(opt(opt(Type::F64))), "f64 | never | never | never"; "triple opt f64")]
+    #[test_case(array(opt(Type::U16)), "[u16 | never]"; "array of opt u16")]
+    #[test_case(opt(array(Type::U8)), "[u8] | never"; "opt array u8")]
+    #[test_case(sized_array(opt(Type::String), 3), "[string | never; 3]"; "sized array of opt string")]
+    #[test_case(opt(sized_array(Type::I32, 8)), "[i32; 8] | never"; "opt sized array i32")]
+    #[test_case(opt(array(opt(Type::I32))), "[i32 | never] | never"; "opt array opt i32")]
+    #[test_case(Type::CompoundType(CompoundType::Struct { to: id("User") }), "User"; "struct ref")]
+    #[test_case(Type::CompoundType(CompoundType::Enum { to: id("Color") }), "Color"; "enum ref")]
+    #[test_case(Type::CompoundType(CompoundType::OneOf { to: id("Payload") }), "Payload"; "one_of ref")]
+    fn display_case(
+        input: Type,
+        expected: &str,
+    ) {
+        assert_eq!(input.to_string(), expected);
+    }
+
+    #[test_case(array(Type::U8), "binary"; "vec u8 simplifies to binary")]
+    #[test_case(opt(opt(array(Type::Never))), "never"; "opt opt array never simplifies to never")]
+    fn simplify_then_display_case(
+        input: Type,
+        expected: &str,
+    ) {
+        assert_eq!(input.simplify().to_string(), expected);
     }
 }

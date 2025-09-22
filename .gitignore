@@ -7,3 +7,4 @@
 
 *.rlib
 *.dylib
+/python-sdk

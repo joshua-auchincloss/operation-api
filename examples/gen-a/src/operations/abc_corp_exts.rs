@@ -1,5 +1,29 @@
 #[derive(serde :: Serialize, serde :: Deserialize, operation_api_sdk :: Struct)]
 #[fields(version = 1)]
+pub struct CommentWithTestChrono {
+    #[serde(rename = "comment")]
+    pub comment: String,
+    #[serde(rename = "created_at")]
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(rename = "deleted_at")]
+    pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(rename = "id")]
+    pub id: i64,
+}
+#[derive(serde :: Serialize, serde :: Deserialize, operation_api_sdk :: Struct)]
+#[fields(version = 1)]
+pub struct CommentWithTestTime {
+    #[serde(rename = "comment")]
+    pub comment: String,
+    #[serde(rename = "created_at")]
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(rename = "deleted_at")]
+    pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(rename = "id")]
+    pub id: i64,
+}
+#[derive(serde :: Serialize, serde :: Deserialize, operation_api_sdk :: Struct)]
+#[fields(version = 1)]
 pub struct StructWithOneOf {
     #[serde(rename = "my_flag")]
     #[fields(one_of)]
@@ -13,4 +37,4 @@ pub enum MaybeFlagType {
     Int(i32),
     Str(String),
 }
-operation_api_core::namespace! { "abc.corp.exts" { StructWithOneOf , MaybeFlagType , } }
+operation_api_sdk::namespace! { "abc.corp.exts" { CommentWithTestChrono , CommentWithTestTime , StructWithOneOf , MaybeFlagType , } }

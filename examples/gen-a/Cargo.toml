@@ -1,15 +1,16 @@
 [package]
 name = "test-gen-a"
-edition.workspace = true
 version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+authors.workspace = true
 publish = false
 
 [dependencies]
-operation-api-core = { path = "../../core" }
 operation-api-sdk = { path = "../../sdk" }
-
-serde = "*"
-
+serde.workspace = true
+chrono = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 operation-api-testing = { path = "../../testing" }

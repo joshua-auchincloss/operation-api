@@ -58,7 +58,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
                 ))
             }
             let ns = ns.name.to_string();
-            tt = quote!(operation_api_core::namespace! { #ns { #tt }});
+            tt = quote!(operation_api_sdk::namespace! { #ns { #tt }});
             ctx.with_file_handle(ctx.ns_file(), |w| write!(w, "{tt}"))?;
         }
         Ok(())
