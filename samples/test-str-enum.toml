@@ -6,6 +6,7 @@ version = 1
 [variants.A]
 name = "A"
 namespace = "abc.corp.test"
+description = "some doc"
 value = "a"
 
 [variants.B]

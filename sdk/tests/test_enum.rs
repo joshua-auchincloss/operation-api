@@ -9,6 +9,7 @@ include!("./shared.rs");
 #[fields(version = 1)]
 pub enum BasicStrEnum {
     #[fields(str_value = "a")]
+    /// some doc
     A,
     #[fields(str_value = "b")]
     B,

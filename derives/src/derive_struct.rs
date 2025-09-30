@@ -1,15 +1,17 @@
-use crate::shared::*;
+use crate::{resolve_defs, shared::*};
 use convert_case::{Case, Casing};
 use darling::FromDeriveInput;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, spanned::Spanned};
+use syn::{Attribute, Ident, spanned::Spanned};
 
-include!("macros.rs");
+use crate::call_span;
 
 #[derive(darling::FromField)]
-#[darling(attributes(fields))]
+#[darling(attributes(fields), forward_attrs(doc))]
 pub struct Field {
+    attrs: Vec<Attribute>,
+
     ident: Option<Ident>,
     ty: syn::Type,
 
@@ -19,12 +21,15 @@ pub struct Field {
     #[darling(default)]
     one_of: bool,
 
+    #[darling(default)]
     describe: Option<DescOrPath>,
 }
 
 #[derive(darling::FromDeriveInput)]
-#[darling(attributes(fields))]
+#[darling(attributes(fields), forward_attrs(doc))]
 pub struct Struct {
+    attrs: Vec<Attribute>,
+
     ident: Ident,
     data: darling::ast::Data<(), Field>,
 
@@ -33,24 +38,34 @@ pub struct Struct {
     describe: Option<DescOrPath>,
 }
 
+resolve_defs! {
+    Struct, Field
+}
+
 pub fn derive_struct(tokens: TokenStream) -> TokenStream {
     let input = call_span!(syn::parse(tokens.clone().into()));
 
-    let s = match Struct::from_derive_input(&input) {
+    let mut s = match Struct::from_derive_input(&input) {
         Ok(s) => s,
         Err(e) => return e.write_errors(),
     };
+
+    call_span!(s.resolve_defs());
 
     let desc = DescOrPath::resolve_defs(&s.ident, s.describe);
 
     let desc_value = desc.desc_value;
     let desc = desc.desc;
 
-    let fields = call_span!(
+    let mut fields = call_span!(
         @opt s.data.take_struct();
         syn::Error::new(s.ident.span(), "#[derive(Struct)] can only be used on structs")
     )
     .fields;
+
+    for field in fields.iter_mut() {
+        call_span!(field.resolve_defs());
+    }
 
     let fields_map = quote!(
         let mut m = std::collections::BTreeMap::<_, _>::new();

@@ -46,3 +46,5 @@ type = "f32"
 [enums]
 
 [one_ofs]
+
+[errors]

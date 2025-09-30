@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-#[cfg(any(feature = "chrono"))]
+#[cfg(any(feature = "chrono", feature = "time"))]
 mod test {
 
     use operation_api_sdk::{Defined, module};

@@ -9,6 +9,8 @@ include = [
     "samples/test-str-enum.toml",
     "samples/test-enum-in-struct.toml",
     "samples/test-one-of.toml",
+    "samples/test-operation-error.toml",
+    "samples/test-error-code.toml",
     "samples/test-struct*.toml",
 ]
 exclude = ["*basic-op*"]

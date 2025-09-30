@@ -2,15 +2,15 @@ use convert_case::{Case, Casing};
 use darling::FromDeriveInput;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Expr, Ident, Lit, LitStr};
+use syn::{Attribute, Expr, Ident, Lit, LitStr};
 
-use crate::shared::*;
-
-include!("macros.rs");
+use crate::{call_span, resolve_defs, shared::*};
 
 #[derive(darling::FromVariant)]
-#[darling(attributes(fields))]
+#[darling(attributes(fields), forward_attrs(doc))]
 pub struct Field {
+    attrs: Vec<Attribute>,
+
     ident: Ident,
     discriminant: Option<syn::Expr>,
 
@@ -22,8 +22,10 @@ pub struct Field {
 }
 
 #[derive(darling::FromDeriveInput)]
-#[darling(attributes(fields), supports(enum_any))]
+#[darling(attributes(fields), supports(enum_any), forward_attrs(doc))]
 pub struct Enum {
+    attrs: Vec<Attribute>,
+
     ident: Ident,
     data: darling::ast::Data<Field, ()>,
 
@@ -32,22 +34,30 @@ pub struct Enum {
     describe: Option<DescOrPath>,
 }
 
+resolve_defs!(Enum, Field);
+
 pub fn derive_enum(tokens: TokenStream) -> TokenStream {
     let input = call_span!(syn::parse(tokens.clone().into()));
-    let s = match Enum::from_derive_input(&input) {
+    let mut s = match Enum::from_derive_input(&input) {
         Ok(s) => s,
         Err(e) => return e.write_errors(),
     };
+
+    call_span!(s.resolve_defs());
 
     let desc = DescOrPath::resolve_defs(&s.ident, s.describe);
 
     let desc_value = desc.desc_value;
     let desc = desc.desc;
 
-    let fields = call_span!(
+    let mut fields = call_span!(
         @opt s.data.take_enum();
         syn::Error::new(s.ident.span(), "#[derive(Enum)] can only be used on enums")
     );
+
+    for f in fields.iter_mut() {
+        call_span!(f.resolve_defs())
+    }
 
     let fields_map = quote!(
         let mut m = std::collections::BTreeMap::<_, _>::new();

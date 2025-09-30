@@ -6,6 +6,7 @@ version = 1
 [fields.enum_value]
 name = "enum_value"
 namespace = "abc.corp.test"
+description = "field doc"
 optional = false
 
 [fields.enum_value.type.compound_type]

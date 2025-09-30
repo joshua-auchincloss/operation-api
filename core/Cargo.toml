@@ -15,6 +15,8 @@ python = ["dep:pyo3"]
 [dependencies]
 pyo3 = { workspace = true, optional = true }
 
+dyn-inventory = { workspace = true }
+
 serde = { workspace = true, features = ["derive"] }
 chrono = { workspace = true, features = ["serde"], optional = true }
 time = { workspace = true, features = ["serde"], optional = true }

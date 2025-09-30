@@ -1,3 +1,12 @@
+#[derive(serde :: Serialize, serde :: Deserialize, operation_api_sdk :: OneOf)]
+#[serde(untagged)]
+#[fields(version = 1)]
+pub enum MaybeFlagType {
+    BoolFlag,
+    #[doc = "some doc"]
+    Int(i32),
+    Str(String),
+}
 #[derive(serde :: Serialize, serde :: Deserialize, operation_api_sdk :: Struct)]
 #[fields(version = 1)]
 pub struct CommentWithTestChrono {
@@ -28,13 +37,5 @@ pub struct StructWithOneOf {
     #[serde(rename = "my_flag")]
     #[fields(one_of)]
     pub my_flag: MaybeFlagType,
-}
-#[derive(serde :: Serialize, serde :: Deserialize, operation_api_sdk :: OneOf)]
-#[serde(untagged)]
-#[fields(version = 1)]
-pub enum MaybeFlagType {
-    BoolFlag,
-    Int(i32),
-    Str(String),
 }
 operation_api_sdk::namespace! { "abc.corp.exts" { CommentWithTestChrono , CommentWithTestTime , StructWithOneOf , MaybeFlagType , } }

@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use convert_case::Casing;
 
 use crate::{
-    Contigious, Definitions, Enum, Field, FieldOrRef, Ident, OneOf, Operation, Struct, Version,
+    Contigious, Definitions, Enum, ErrorTy, Field, FieldOrRef, Ident, OneOf, Operation, Struct,
+    Version,
 };
 
 #[cfg(feature = "generate")]
@@ -36,6 +37,7 @@ pub struct Namespace {
     pub defs: BTreeMap<Ident, Struct>,
     pub enums: BTreeMap<Ident, Enum>,
     pub one_ofs: BTreeMap<Ident, OneOf>,
+    pub errors: BTreeMap<Ident, ErrorTy>,
 }
 
 impl Namespace {
@@ -48,6 +50,7 @@ impl Namespace {
             defs: Default::default(),
             enums: Default::default(),
             one_ofs: Default::default(),
+            errors: Default::default(),
         }
     }
 
@@ -109,6 +112,15 @@ impl Namespace {
                     &self.name,
                     one,
                     "one_of",
+                )?;
+            },
+            Definitions::ErrorV1(err) => {
+                unique_ns_def(
+                    &mut self.errors,
+                    err.meta.name.clone(),
+                    &self.name,
+                    err,
+                    "error",
                 )?;
             },
             // note: this is an internal error

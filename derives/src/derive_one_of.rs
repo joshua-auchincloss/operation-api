@@ -2,27 +2,38 @@ use convert_case::{Case, Casing};
 use darling::{FromDeriveInput, FromField, ast::Fields};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, Type};
+use syn::{Attribute, Ident, Type};
 
-use crate::shared::*;
+use crate::{resolve_defs, shared::*};
 
-include!("macros.rs");
+use crate::call_span;
 
 #[derive(darling::FromVariant)]
-#[darling(attributes(fields))]
+#[darling(attributes(fields), forward_attrs(doc))]
 pub struct OneOfField {
+    pub attrs: Vec<Attribute>,
     ident: Ident,
     fields: Fields<OneOfInnerField>,
+
+    #[darling(default)]
+    describe: Option<DescOrPath>,
 }
 
 #[derive(FromField, Clone)]
+#[darling(attributes(fields), forward_attrs(doc))]
 pub struct OneOfInnerField {
+    pub attrs: Vec<Attribute>,
     pub ty: Type,
+
+    #[darling(default)]
+    describe: Option<DescOrPath>,
 }
 
 #[derive(darling::FromDeriveInput)]
-#[darling(attributes(fields), supports(enum_any))]
+#[darling(attributes(fields), supports(enum_any), forward_attrs(doc))]
 pub struct OneOfDesc {
+    pub attrs: Vec<Attribute>,
+
     ident: Ident,
     data: darling::ast::Data<OneOfField, ()>,
 
@@ -32,21 +43,34 @@ pub struct OneOfDesc {
     describe: Option<DescOrPath>,
 }
 
+resolve_defs! {
+    OneOfField, OneOfInnerField, OneOfDesc
+}
+
 pub fn derive_one_of(tokens: TokenStream) -> TokenStream {
     let input = call_span!(syn::parse(tokens.clone().into()));
-    let s = match OneOfDesc::from_derive_input(&input) {
+    let mut s = match OneOfDesc::from_derive_input(&input) {
         Ok(s) => s,
         Err(e) => return e.write_errors(),
     };
+
+    call_span!(s.resolve_defs());
 
     let desc = DescOrPath::resolve_defs(&s.ident, s.describe);
     let desc_value = desc.desc_value;
     let desc = desc.desc;
 
-    let fields = call_span!(
+    let mut fields = call_span!(
         @opt s.data.take_enum();
         syn::Error::new(s.ident.span(), "#[derive(OneOf)] can only be used on enums")
     );
+
+    for field in fields.iter_mut() {
+        call_span!(field.resolve_defs());
+        for inner in field.fields.fields.iter_mut() {
+            call_span!(inner.resolve_defs());
+        }
+    }
 
     let fields_map = quote!(
         let mut m = std::collections::BTreeMap::<_, operation_api_sdk::OneOfVariant>::new();
@@ -81,15 +105,21 @@ pub fn derive_one_of(tokens: TokenStream) -> TokenStream {
                     .into_compile_error();
                 }
                 saw_nullish = true;
-                // quote::quote! {Never}
                 quote::quote!(Option<()>)
             },
         };
 
+        let desc = DescOrPath::resolve_defs(&field.ident, field.describe.clone());
+        let desc_value = desc.desc_value;
+        let desc = desc.desc;
+
         fields_def.extend(quote!(
+            #desc
+
             m.insert(#iden_str.into(), operation_api_sdk::OneOfVariant{
                 name: #iden_str.into(),
                 ty: <#ty>::ty(),
+                description: #desc_value,
             });
         ));
     }

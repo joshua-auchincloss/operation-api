@@ -6,6 +6,7 @@ include!("./shared.rs");
 
 #[derive(operation_api_sdk::Enum)]
 #[fields(version = 1)]
+/// some doc
 enum SomeEnum {
     A,
 }
@@ -14,6 +15,7 @@ enum SomeEnum {
 #[fields(version = 1)]
 struct SomeStructWithEnum {
     #[fields(enm)]
+    /// field doc
     enum_value: SomeEnum,
 }
 

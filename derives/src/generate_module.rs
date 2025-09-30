@@ -1,13 +1,16 @@
 use std::path::PathBuf;
 
-use operation_api_core::generate::{Generation, GenerationConfig, files::MemCollector};
+use operation_api_core::{
+    config::NewForConfig,
+    generate::{Generation, GenerationConfig, files::MemCollector},
+};
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{Ident, LitStr, Visibility, braced, parse::Parse};
 
 use crate::shared::ident;
 
-include!("macros.rs");
+use crate::call_span;
 
 struct Attributes {
     src: PathBuf,

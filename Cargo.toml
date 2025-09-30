@@ -61,3 +61,5 @@ tokio = "1"
 tempfile = "3"
 
 serde_repr = "0.1"
+
+dyn-inventory = "0.2"

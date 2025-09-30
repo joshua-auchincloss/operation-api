@@ -12,13 +12,13 @@ use std::{
     sync::Arc,
 };
 
-use config::File;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::Deserialize;
 use validator::Validate;
 
 use crate::{
-    Enum, Error, Ident, Named, OneOf, Operation, Result, Struct,
+    Enum, ErrorTy, Ident, Named, OneOf, Operation, Result, Struct,
+    config::NewForConfig,
     context::Context,
     default,
     generate::{
@@ -206,28 +206,8 @@ pub struct GenerationConfig {
     pub rust: Option<GenOpts<RustConfig>>,
 }
 
-impl GenerationConfig {
-    pub fn new<'a, S: Into<&'a str>>(dir: Option<S>) -> Result<Self> {
-        let file_name = format!(
-            "{}",
-            PathBuf::from(dir.map(|s| s.into()).unwrap_or("./"))
-                .join("op-gen")
-                .display()
-        );
-
-        let this: Self = config::ConfigBuilder::<config::builder::DefaultState>::default()
-            .add_source(File::with_name(&file_name).required(true))
-            .add_source(config::Environment::default().prefix("OP"))
-            .build()
-            .map_err(Error::from_with_source_init(file_name.clone()))?
-            .try_deserialize()
-            .map_err(Error::from_with_source_init(file_name.clone()))?;
-
-        this.validate()
-            .map_err(Error::from_with_source_init(file_name.clone()))?;
-
-        Ok(this)
-    }
+impl NewForConfig for GenerationConfig {
+    const NAME: &'static str = "op-gen";
 }
 
 pub trait Generate<State: Sync + Send, Ext: ConfigExt + Sync + Send>
@@ -274,20 +254,24 @@ where
             );
 
             if root.targets.contains(&Target::Types) {
-                for def in ns.defs.values() {
-                    self.gen_struct(&ns_ctx, def)?;
-                }
-
-                for op in ns.ops.values() {
-                    self.gen_operation(&ns_ctx, op)?;
-                }
-
                 for enm in ns.enums.values() {
                     self.gen_enum(&ns_ctx, enm)?;
                 }
 
                 for one in ns.one_ofs.values() {
                     self.gen_one_of(&ns_ctx, one)?;
+                }
+
+                for def in ns.defs.values() {
+                    self.gen_struct(&ns_ctx, def)?;
+                }
+
+                for err in ns.errors.values() {
+                    self.gen_error(&ns_ctx, err)?;
+                }
+
+                for op in ns.ops.values() {
+                    self.gen_operation(&ns_ctx, op)?;
                 }
             }
 
@@ -321,6 +305,12 @@ where
         &self,
         state: &WithNsContext<'_, State, Ext, Self>,
         def: &OneOf,
+    ) -> Result<()>;
+
+    fn gen_error(
+        &self,
+        state: &WithNsContext<'_, State, Ext, Self>,
+        def: &ErrorTy,
     ) -> Result<()>;
 }
 
@@ -463,6 +453,8 @@ mod test {
                     "../samples/test-str-enum.toml",
                     "../samples/test-enum-in-struct.toml",
                     "../samples/test-one-of.toml",
+                    "../samples/test-operation-error.toml",
+                    "../samples/test-error-code.toml",
                     "../samples/test-struct*.toml",
                 ]
                 .into_iter()
@@ -491,8 +483,12 @@ mod test {
             "../samples/basic-struct.toml",
             "../samples/test-enum-in-struct.toml",
             "../samples/test-enum.toml",
+            "../samples/test-error-code.toml",
             "../samples/test-one-of.toml",
+            "../samples/test-operation-error.toml",
             "../samples/test-str-enum.toml",
+            "../samples/test-struct-known-error.toml",
+            "../samples/test-struct-operation-error-unknown.toml",
             "../samples/test-struct-readme.toml",
             "../samples/test-struct-text.toml",
             "../samples/test-struct-with-chrono.toml",

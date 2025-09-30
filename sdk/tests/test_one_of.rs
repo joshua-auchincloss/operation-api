@@ -8,6 +8,7 @@ include!("shared.rs");
 #[derive(OneOf)]
 #[fields(version = 1)]
 pub enum MaybeFlagType {
+    /// some doc
     Int(i32),
     Str(String),
     BoolFlag,

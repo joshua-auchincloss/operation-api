@@ -10,8 +10,11 @@ authors.workspace = true
 name = "define"
 
 [dependencies]
-operation-api-core = { path = "../core", features = ["generate"] }
-operation-api-sdk = { path = "../sdk" }
+operation-api-core = { path = "../core", features = [
+    "generate",
+    "chrono",
+    "time",
+] }
 
 clap = { version = "*", features = ["derive", "env"] }
 

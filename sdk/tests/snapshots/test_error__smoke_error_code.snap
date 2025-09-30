@@ -1,22 +1,22 @@
 ---
-source: sdk/tests/test_enum.rs
+source: sdk/tests/test_error.rs
 expression: ser
 ---
 type: enum@v1
-name: BasicIntEnum
+name: ErrorCode
 namespace: abc.corp.test
-description: some int based enum
+description: ~
 version: 1
 variants:
-  A:
-    name: A
+  Baz:
+    name: Baz
     namespace: abc.corp.test
     description: ~
     version: ~
-    value: 0
-  B:
-    name: B
+    value: 2
+  Foo:
+    name: Foo
     namespace: abc.corp.test
-    description: B is 99
+    description: ~
     version: ~
-    value: 99
+    value: 1

@@ -6,7 +6,7 @@ use quote::{ToTokens, quote};
 use syn::{Ident, Lit, LitInt};
 
 use crate::{
-    Contigious, EnumValueType, Operation, StrOrInt, Struct,
+    Contigious, EnumValueType, ErrorTy, Operation, StrOrInt, Struct,
     generate::{
         GenOpts, Generate, LanguageTrait, RustConfig, context::WithNsContext, files::WithFlush,
     },
@@ -51,6 +51,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
 
             keys.append(&mut ctx.ns.enums.keys().collect());
             keys.append(&mut ctx.ns.one_ofs.keys().collect());
+            keys.append(&mut ctx.ns.errors.keys().collect());
             for it in keys {
                 let created = def_ident(it.clone());
                 tt.extend(quote!(
@@ -103,7 +104,6 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
             .vis
             .as_rust(state, &def.meta.name);
         let desc_comment = def.meta.doc_comment();
-        let op_comment = def.meta.op_comment();
         let iden = def.meta.ident_as_pascal();
         let version = def.meta.version();
 
@@ -120,11 +120,10 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
             let atts = field.ty.rust_attrs();
             fields.extend({
                 let comment = field.meta.doc_comment();
-                let op_comment = field.meta.op_comment();
                 let ty = field.ty.ty(&state.opts.opts);
                 quote!(
                     #[serde(rename = #name)]
-                    #op_comment
+
                     #comment
                     #atts
                     #vis #f: #ty,
@@ -136,7 +135,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
             #[derive(serde::Serialize, serde::Deserialize, operation_api_sdk::Struct)]
             #[fields(version = #version)]
             #desc_comment
-            #op_comment
+
             #vis struct #iden {
                 #fields
             }
@@ -167,7 +166,6 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
             .as_rust(state, &def.meta.name);
 
         let doc_comment = def.meta.doc_comment();
-        let op_comment = def.meta.op_comment();
         let version = def.meta.version();
 
         let inner_ty = def.variants.is_contigious(&def.meta.name)?;
@@ -191,11 +189,9 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
                     },
                 };
                 let doc_comment = var.meta.doc_comment();
-                let op_comment = var.meta.op_comment();
                 let iden = var.meta.ident_as_pascal();
                 quote! {
                     #doc_comment
-                    #op_comment
                     #atts
                     #iden #value,
                 }
@@ -226,7 +222,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
             #[fields(version = #version)]
             #atts
             #doc_comment
-            #op_comment
+
             #vis enum #name {
                 #fields
             }
@@ -254,22 +250,22 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
             .as_rust(state, &def.meta.name);
         let name = def.meta.ident_as_pascal();
         let doc_comment = def.meta.doc_comment();
-        let op_comment = def.meta.op_comment();
         let version = def.meta.version();
 
         let fields: TokenStream = def
             .variants
             .iter()
             .map(|(iden, var)| {
-                let iden = ident(
+                let iden_pascal = ident(
                     iden.to_string()
                         .to_case(convert_case::Case::Pascal),
                 );
                 let ty = var.ty.ty(&state.opts.opts);
+                let vdoc = crate::generate::rust::comment(&var.description);
                 if matches!(var.ty, crate::ty::Type::Never) {
-                    quote!(#iden,)
+                    quote!( #vdoc #iden_pascal, )
                 } else {
-                    quote!( #iden(#ty), )
+                    quote!( #vdoc #iden_pascal(#ty), )
                 }
             })
             .collect();
@@ -279,9 +275,59 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
             #[serde(untagged)]
             #[fields(version = #version)]
             #doc_comment
-            #op_comment
+
             #vis enum #name {
                 #fields
+            }
+        });
+
+        state.with_file_handle(ns_file, |w| {
+            write!(w, "{tt}")?;
+            Ok(())
+        })?;
+        Ok(())
+    }
+
+    fn gen_error(
+        &self,
+        state: &WithNsContext<'_, RustGenState, RustConfig, Self>,
+        def: &ErrorTy,
+    ) -> super::Result<()> {
+        let ns_file = state.ns_file();
+        let mut tt = quote!();
+
+        let vis = state
+            .opts
+            .opts
+            .vis
+            .as_rust(state, &def.meta.name);
+        let name = def.meta.ident_as_pascal();
+        let doc_comment = def.meta.doc_comment();
+        let version = def.meta.version();
+
+        let variants: proc_macro2::TokenStream = def
+            .variants
+            .iter()
+            .map(|(ident, variant)| {
+                let name = crate::generate::rust::ident(
+                    ident
+                        .to_string()
+                        .to_case(convert_case::Case::Pascal),
+                );
+                let ty = variant.ty.ty(&state.opts.opts);
+                let variant = &variant;
+                let vdoc = crate::generate::rust::comment(&variant.description);
+                quote! { #vdoc #name(#ty), }
+            })
+            .collect();
+
+        tt.extend(quote! {
+            #[derive(serde::Serialize, serde::Deserialize, operation_api_sdk::Error)]
+            #[fields(version = #version)]
+            #doc_comment
+            #[serde(tag = "type", rename_all = "snake_case")]
+            #vis enum #name {
+                #variants
             }
         });
 

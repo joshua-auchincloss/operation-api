@@ -39,4 +39,5 @@ round_trip! {
     "../../../samples/test-str-enum.toml": BasicStrEnum = "../../../samples/test-str-enum.json",
     "../../../samples/test-enum.toml": BasicIntEnum = "../../../samples/test-enum.json",
     "../../../samples/test-struct-with-enum.toml": SomeStructWithEnum = "../../../samples/test-struct-with-enum.json",
+    "../../../samples/test-operation-error.toml": OperationError = "../../../samples/test-operation-error.json",
 }

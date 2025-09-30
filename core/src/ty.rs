@@ -654,6 +654,12 @@ pub struct Operation {
     #[serde(flatten)]
     pub meta: Meta<Ident, Ident, Version>,
 
+    #[serde(default)]
+    pub infallible: bool,
+
+    #[serde(default)]
+    pub error: Option<Ident>,
+
     pub inputs: FieldsList,
     pub outputs: FieldsList,
 }
@@ -669,11 +675,21 @@ pub struct Enum {
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, bon::Builder, Clone)]
 pub struct OneOfVariant {
     pub name: Ident,
+    #[serde(default)]
+    pub description: Option<String>,
     pub ty: Type,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, bon::Builder, Clone)]
 pub struct OneOf {
+    #[serde(flatten)]
+    pub meta: Meta<Ident, Ident, Version>,
+
+    pub variants: Named<OneOfVariant>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, bon::Builder, Clone)]
+pub struct ErrorTy {
     #[serde(flatten)]
     pub meta: Meta<Ident, Ident, Version>,
 
@@ -698,6 +714,9 @@ pub enum Definitions {
     #[serde(rename = "one_of@v1", alias = "one_of")]
     OneOfV1(OneOf),
 
+    #[serde(rename = "error@v1", alias = "error")]
+    ErrorV1(ErrorTy),
+
     #[serde(rename = "namespace@v1", alias = "namespace")]
     NamespaceV1(Namespace),
 }
@@ -710,6 +729,7 @@ impl Definitions {
             Self::OperationV1(v) => &v.meta.name,
             Self::EnumV1(v) => &v.meta.name,
             Self::OneOfV1(v) => &v.meta.name,
+            Self::ErrorV1(v) => &v.meta.name,
             Self::NamespaceV1(ns) => &ns.name,
         }
     }
@@ -721,6 +741,7 @@ impl Definitions {
             Self::OperationV1(v) => &v.meta.namespace,
             Self::EnumV1(v) => &v.meta.namespace,
             Self::OneOfV1(v) => &v.meta.namespace,
+            Self::ErrorV1(v) => &v.meta.namespace,
             Self::NamespaceV1(ns) => &ns.name,
         }
     }
@@ -784,6 +805,10 @@ impl Definitions {
 
 #[cfg(test)]
 mod test {
+    use std::marker::PhantomData;
+
+    use crate::Typed;
+
     use super::{CompoundType, Type};
     use test_case::test_case;
 
@@ -899,5 +924,100 @@ mod test {
         expected: &str,
     ) {
         assert_eq!(input.simplify().to_string(), expected);
+    }
+
+    #[test_case(
+        PhantomData::<i16>, Type::I16; "i16 into i16"
+        )]
+    #[test_case(
+        PhantomData::<i32>, Type::I32; "i32 into i32"
+        )]
+    #[test_case(
+        PhantomData::<i64>, Type::I64; "i64 into i64"
+        )]
+    #[test_case(
+        PhantomData::<u16>, Type::U16; "u16 into u16"
+        )]
+    #[test_case(
+        PhantomData::<u32>, Type::U32; "u32 into u32"
+        )]
+    #[test_case(
+        PhantomData::<u64>, Type::U64; "u64 into u64"
+        )]
+    #[test_case(
+        PhantomData::<usize>, Type::Usize; "usize into usize"
+        )]
+    #[test_case(
+        PhantomData::<f32>, Type::F32; "f32 into f32"
+        )]
+    #[test_case(
+        PhantomData::<f64>, Type::F64; "f64 into f64"
+        )]
+    #[test_case(
+        PhantomData::<bool>, Type::Bool; "bool into bool"
+        )]
+    #[test_case(
+        PhantomData::<String>, Type::String; "string into string"
+        )]
+    #[test_case(
+        PhantomData::<()>, Type::Never; "unit into never"
+        )]
+    #[test_case(
+        PhantomData::<Option<u8>>, opt(Type::U8); "option<u8> into option<u8>"
+        )]
+    #[test_case(
+        PhantomData::<Option<()>>, Type::Never; "option<()> into never"
+        )]
+    #[test_case(
+        PhantomData::<Option<Option<i32>>>, opt(opt(Type::I32)); "option<option<i32>> nested"
+        )]
+    #[test_case(
+        PhantomData::<Option<Option<Option<u8>>>>, opt(opt(opt(Type::U8))); "triple option<u8>"
+        )]
+    #[test_case(
+        PhantomData::<Vec<u8>>, array(Type::U8); "vec<u8> into array<u8>"
+        )]
+    #[test_case(
+        PhantomData::<Vec<Vec<u16>>>, array(array(Type::U16)); "vec<vec<u16>> nested arrays"
+        )]
+    #[test_case(
+        PhantomData::<Vec<Option<u8>>>, array(opt(Type::U8)); "vec<option<u8>>"
+        )]
+    #[test_case(
+        PhantomData::<Vec<()>>, array(Type::Never); "vec<()> -> array<never>"
+        )]
+    #[test_case(
+        PhantomData::<Option<Vec<u8>>>, opt(array(Type::U8)); "option<vec<u8>>"
+        )]
+    #[test_case(
+        PhantomData::<[u8; 16]>, sized_array(Type::U8, 16); "[u8; 16] sized array"
+        )]
+    #[test_case(
+        PhantomData::<[Option<i32>; 4]>, sized_array(opt(Type::I32), 4); "[option<i32>; 4] sized array"
+        )]
+    #[test_case(
+        PhantomData::<Option<[u8; 4]>>, opt(sized_array(Type::U8, 4)); "option<[u8; 4]>"
+        )]
+    #[test_case(
+        PhantomData::<[[u16; 2]; 3]>, sized_array(sized_array(Type::U16, 2), 3); "[[u16; 2]; 3] nested sized arrays"
+        )]
+    #[test_case(
+        PhantomData::<Vec<[u8; 4]>>, array(sized_array(Type::U8, 4)); "vec<[u8; 4]>"
+        )]
+    #[test_case(
+        PhantomData::<[Vec<u8>; 2]>, sized_array(array(Type::U8), 2); "[vec<u8>; 2]"
+        )]
+    #[test_case(
+        PhantomData::<Option<Vec<[Option<u16>; 2]>>>, opt(array(sized_array(opt(Type::U16), 2))); "option<vec<[option<u16>; 2]>>"
+        )]
+    #[test_case(
+        PhantomData::<u8>, Type::U8; "u8 into u8"
+
+    )]
+    fn from_rust_type<T: Typed>(
+        _: PhantomData<T>,
+        expect: Type,
+    ) {
+        assert_eq!(T::ty(), expect)
     }
 }

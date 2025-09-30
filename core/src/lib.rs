@@ -1,10 +1,14 @@
 #![allow(clippy::iter_kv_map)]
 
+pub mod config;
 pub mod context;
 
+pub mod checks;
 pub mod namespace;
 pub mod ty;
 pub(crate) mod utils;
+use std::marker::PhantomData;
+
 pub use paste::paste;
 pub use ty::*;
 
@@ -50,7 +54,7 @@ pub enum Error {
     NameNotFound { name: Ident, ns: Ident },
 
     #[error("config error: {0}")]
-    Config(#[from] config::ConfigError),
+    Config(#[from] ::config::ConfigError),
 
     #[error("glob error: {0}")]
     Glob(#[from] glob::GlobError),
@@ -64,9 +68,11 @@ pub enum Error {
     #[error("'{ident}' is not contigious with {desc}")]
     ContigiousError { ident: Ident, desc: String },
 
-    #[cfg(feature = "generate")]
     #[error("{0}")]
-    Validation(#[from] validator::ValidationErrors),
+    Validation(#[from] validator::ValidationError),
+
+    #[error("{0}")]
+    Validations(#[from] validator::ValidationErrors),
 }
 
 impl Error {
@@ -106,6 +112,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 //     }
 //     v
 // }
+
+pub struct Ctx;
+
+#[derive(Default)]
+pub struct Data<T> {
+    ph: PhantomData<T>,
+}
 
 #[cfg(test)]
 mod test {
@@ -167,6 +180,7 @@ mod test {
                 .outputs(FieldsList::new(map!({
                     value: Field::builder().ty(ty!(u32)).optional(false).meta(empty_meta()).build()
                 })))
+                .infallible(true)
                 .build(),
         );
         assert_eq!(s, expect);

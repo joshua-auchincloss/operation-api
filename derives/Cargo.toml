@@ -30,3 +30,5 @@ toml.workspace = true
 
 [dev-dependencies]
 operation-api-testing = { path = "../testing" }
+
+test-case = "3"

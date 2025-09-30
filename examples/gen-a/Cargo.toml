@@ -17,3 +17,4 @@ operation-api-testing = { path = "../../testing" }
 toml.workspace = true
 serde_json.workspace = true
 paste.workspace = true
+test-case = "*"

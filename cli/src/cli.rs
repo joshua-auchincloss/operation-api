@@ -1,3 +1,5 @@
+use operation_api_core::config::NewForConfig;
+
 #[derive(Default, clap::ValueEnum, Clone, Debug)]
 pub enum LogLevel {
     Debug,
