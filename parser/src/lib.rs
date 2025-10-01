@@ -5,12 +5,12 @@
     clippy::ptr_arg
 )]
 
+pub mod ast;
+pub mod ctx;
 pub mod defs;
 pub mod diagnostics;
 pub mod parser;
 pub mod tokens;
-
-pub mod ctx;
 pub(crate) mod utils;
 
 #[cfg(test)]
