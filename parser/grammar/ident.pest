@@ -1,0 +1,153 @@
+WHITESPACE = _{ " " | "\r" | "\n" | "\t" }
+
+multiline_comment = { "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+singleline_comment = { "//" ~ (!"\n" ~ ANY)* ~ "\n" }
+comment = @{ singleline_comment | multiline_comment }
+
+// idents
+alpha = { 'a'..'z' | 'A'..'Z' }
+digit = { '0'..'9' }
+name = @{ (alpha | "_") ~ (alpha | digit | "_")* }
+ident = @{ name ~ ("::" ~ name)* }
+
+// field separators
+required_field_sep = _{ ":" }
+optional_field_sep = @{ "?" ~ ":" }
+field_sep = _{ required_field_sep | optional_field_sep }
+
+// strings
+quote = _{ "\"" | "'" }
+escaped_char = { "\\" ~ (quote | "\\" | "n" | "t") }
+quoted_value = { (escaped_char | !quote ~ ANY)* }
+quoted = { ("'" ~ quoted_value ~ "'") | ("\"" ~ quoted_value ~ "\"") }
+
+// values
+eq = _{ "=" }
+number = @{ digit+ }
+value = _{ number | quoted }
+eq_value = { eq ~ value }
+
+
+outer_meta = { "#" ~ "[" ~ meta_value ~ "]" }
+inner_meta = { "#" ~ "!" ~ "[" ~ meta_value ~ "]" }
+
+meta_value = { name ~ "(" ~ value ~ ")" }
+
+// args
+arg = {
+    comment* ~ 
+    name ~ 
+    field_sep ~ 
+    typ ~ 
+    eq_value? ~ 
+    (!"\n" ~ singleline_comment)*
+}
+
+arg_list = {
+    (arg ~ ("," ~ (!"\n" ~ singleline_comment)* ~ arg)* ~ ("," ~ (!"\n" ~ singleline_comment)*)? )?
+}
+
+// enum 
+enum_item = {
+    comment* ~ 
+    name ~ 
+    eq_value? ~ 
+    (!"\n" ~ singleline_comment)*
+}
+
+enum_list = {
+    (enum_item ~ ",")+
+}
+
+// types
+i8  = @{ "i8" }
+i16 = @{ "i16" }
+i32 = @{ "i32" }
+i64 = @{ "i64" }
+ints = { i8 | i16 | i32 | i64 }
+
+u8  = @{ "u8" }
+u16 = @{ "u16" }
+u32 = @{ "u32" }
+u64 = @{ "u64" }
+unsigned = { u8 | u16 | u32 | u64 }
+
+f16 = @{ "f16" }
+f32 = @{ "f32" }
+f64 = @{ "f64" }
+floats = { f16 | f32 | f64 }
+
+bool = @{ "bool" }
+str = @{ "str" }
+sized_str = @{ "str(" ~ digit+ ~ ")" }
+null = @{ "null" }
+
+builtin = { ints | unsigned | floats | bool | str | sized_str | null }
+singular_type = { builtin | ident }
+
+// type operands are either singular types or parenthesized types
+// e.g. (i32 | i64) | (str | i32)
+type_operand = { singular_type | ("(" ~ typ ~ ")") }
+
+oneof = {
+     oneof_kw ~ type_operand ~ ("|" ~ type_operand)+
+}
+
+oneof_arg = {
+    (name ~ "(" ~ typ ~ ")") | ( name ~ "{" ~ arg_list ~ "}" )
+}
+
+oneof_arglist = {
+    (oneof_arg ~ ("," ~ (!"\n" ~ singleline_comment)* ~ oneof_arg)* ~ ("," ~ (!"\n" ~ singleline_comment)*)? )?
+}
+
+array = { "[" ~ "]" }
+typ = { (oneof | type_operand) ~ array? }
+
+// top level declarations
+oneof_kw = _{ "oneof" }
+oneof_def = {
+    oneof_kw ~ name ~ "{" ~ oneof_arglist ~ "}"
+}
+
+type_kw = _{ "type" }
+type_def = {
+    type_kw ~ name ~ eq ~ typ
+}
+
+struct_kw = _{ "struct" }
+struct_def = {
+    struct_kw ~ name ~ "{" ~ arg_list ~ "}"
+}
+
+import_kw = _{ "import" }
+import_def = {
+    import_kw ~ quoted
+}
+
+namespace_kw = _{ "namespace" }
+namespace_def = {
+    namespace_kw ~ ident
+}
+
+enum_kw = _{ "enum" }
+enum_def = {
+    enum_kw ~ name ~ "{" ~ enum_list ~ "}" 
+}
+
+// reserved keywords
+keywords = _{
+    type_kw
+    | struct_kw
+    | import_kw
+    | namespace_kw
+    | enum_kw
+}
+
+payloads = {
+    SOI ~ ( 
+        comment 
+        | ( outer_meta* ~ (namespace_def | import_def | type_def | oneof_def | struct_def | enum_def) ~ ";" )
+        | inner_meta
+    )* ~ EOI
+}

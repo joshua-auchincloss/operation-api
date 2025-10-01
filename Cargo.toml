@@ -6,6 +6,7 @@ members = [
     "cli",
     "examples/*",
     "testing",
+    "parser",
     # "python-sdk",
 ]
 resolver = "3"
@@ -63,3 +64,6 @@ tempfile = "3"
 serde_repr = "0.1"
 
 dyn-inventory = "0.2"
+
+pest = "2.8"
+pest_derive = "2.8"

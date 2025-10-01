@@ -58,4 +58,4 @@ jobs:
       - run: rustup component add rustfmt
       - name: Cargo Check Fmt
         run: |
-          cargo clippy
+          cargo clippy --features generate,chrono,time
