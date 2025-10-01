@@ -1,0 +1,44 @@
+name: Minimal setup
+on:
+  pull_request:
+    branches:
+      - main
+      - v*
+  push:
+    branches:
+      - main
+      - v*
+      - parser
+
+jobs:
+  benchmark:
+    name: Check Performance Regressions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: cargo
+
+      - name: Run benchmark
+        run: cargo bench | tee output.txt
+
+      - name: Download previous benchmark data
+        uses: actions/cache@v4
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: "cargo"
+          output-file-path: output.txt
+          external-data-json-path: ./cache/benchmark-data.json
+          fail-on-alert: true
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-alert: true
+          summary-always: true
+          alert-comment-cc-users: "@joshua-auchincloss"

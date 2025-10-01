@@ -1,34 +1,28 @@
-use crate::defs::*;
-
-use std::{fmt::Display, future::pending, path::PathBuf};
-
-use pest::iterators::{Pair, Pairs};
-
-use crate::parser::Rule;
+use crate::{defs::*, parser::Rule};
+use pest::iterators::Pairs;
 
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum UnionKind {
+pub enum OneOfKind {
     Or,
-    And,
 }
 
 #[derive(Debug, bon::Builder, Clone, PartialEq)]
-pub struct UnionType {
-    pub types: Vec<Type>,
-    pub kind: UnionKind,
+pub struct OneOfType<V> {
+    pub types: Vec<Type<V>>,
+    pub kind: OneOfKind,
+    pub version: V,
 }
 
-impl FromInner for UnionType {
+impl<V: Default + Clone + std::fmt::Debug + PartialEq> FromInner for OneOfType<V> {
     fn from_inner(pairs: Pairs<crate::parser::Rule>) -> crate::Result<Self> {
         let mut types = vec![];
-        let mut kind = UnionKind::Or;
-
+        let mut kind = OneOfKind::Or;
         for pair in pairs {
             match pair.as_rule() {
                 Rule::type_operand | Rule::typ => return Self::from_inner(pair.into_inner()),
                 Rule::singular_type => types.push(Type::from_inner(pair.into_inner())?),
                 Rule::oneof => {
-                    kind = UnionKind::Or;
+                    kind = OneOfKind::Or;
                     for it in pair.into_inner() {
                         types.push(Type::from_inner(Pairs::single(it))?)
                     }
@@ -36,20 +30,23 @@ impl FromInner for UnionType {
                 rule => panic!("{rule:#?}"),
             }
         }
-
-        Ok(Self { types, kind })
+        Ok(Self {
+            types,
+            kind,
+            version: V::default(),
+        })
     }
 }
 
-impl UnionType {
+impl OneOfType<usize> {
     pub fn cast_value(
         &self,
         pairs: Pairs<Rule>,
     ) -> crate::Result<Value> {
         for ty in &self.types {
             match ty {
-                Type::Union(union) => {
-                    if let Ok(value) = union.cast_value(pairs.clone()) {
+                Type::OneOf(oneof) => {
+                    if let Ok(value) = oneof.cast_value(pairs.clone()) {
                         return Ok(value);
                     }
                 },
@@ -60,10 +57,29 @@ impl UnionType {
                 },
             }
         }
-
         Err(crate::Error::value_error(
             pairs.as_str().into(),
-            vec![Type::union(self.clone())],
+            vec![Type::oneof(self.clone())],
         ))
+    }
+}
+
+pub type OneOfSealed = OneOfType<usize>;
+pub type OneOfUnsealed = OneOfType<Option<usize>>;
+
+impl OneOfUnsealed {
+    pub fn seal(
+        self,
+        file_version: usize,
+    ) -> OneOfSealed {
+        OneOfType {
+            types: self
+                .types
+                .into_iter()
+                .map(|it| it.seal(file_version))
+                .collect(),
+            kind: self.kind,
+            version: self.version.unwrap_or(file_version),
+        }
     }
 }

@@ -8,5 +8,5 @@ enum int_enum {
 };
 
 struct test_enum_message {
-    a: int_enum = int_enum::a,
+    a: int_enum,
 };

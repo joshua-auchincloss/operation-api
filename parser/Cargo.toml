@@ -6,6 +6,9 @@ license-file.workspace = true
 homepage.workspace = true
 authors.workspace = true
 
+[[bench]]
+name = "parsing"
+harness = false
 
 [features]
 bench = []
@@ -22,7 +25,5 @@ miette = { version = "7", features = ["fancy"] }
 [dev-dependencies]
 criterion = { version = "*", features = ["html_reports"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-
-[[bench]]
-name = "parsing"
-harness = false
+operation-api-testing = { path = "../testing" }
+test-case.workspace = true

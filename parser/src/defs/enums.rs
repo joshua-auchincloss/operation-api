@@ -1,8 +1,6 @@
 use crate::defs::*;
 
-use std::{fmt::Display, future::pending, path::PathBuf};
-
-use pest::iterators::{Pair, Pairs};
+use pest::iterators::Pairs;
 
 use Rule;
 
@@ -12,10 +10,14 @@ pub struct EnumValue {
     pub ident: Ident,
     pub value: Value,
     pub ty: EnumTy,
+    pub meta: Vec<MetaAttribute>,
 }
 
 impl Commentable for EnumValue {
-    fn comment(&mut self, comment: String) {
+    fn comment(
+        &mut self,
+        comment: String,
+    ) {
         self.comment += &comment;
     }
 }
@@ -26,7 +28,6 @@ impl EnumValue {
         ty: Option<EnumTy>,
         default_value: Value,
     ) -> crate::Result<Self> {
-        // panic!("{pairs:#?}");
         let mut comment = String::new();
         let mut ident = None;
         let mut value = None;
@@ -35,36 +36,42 @@ impl EnumValue {
             match pair.as_rule() {
                 Rule::enum_item => {
                     return Self::from_inner(pair.into_inner(), ty, default_value);
-                }
+                },
                 Rule::singleline_comment | Rule::multiline_comment => {
                     comment += &take_comment(Pairs::single(pair));
-                }
+                },
                 Rule::ident | Rule::name => {
-                    ident = Some(Ident::from_inner(Pairs::single(pair))?);
-                }
-                Rule::eq_value => match &ty {
-                    Some(t) => {
-                        let v = Value::from_inner(pair.into_inner(), Type::Builtin(t.builtin()))?;
-                        ty = Some(EnumTy::from_value(&v));
-                        value = Some(v);
-                    }
-                    None => {
-                        match Value::from_inner(
-                            pair.clone().into_inner(),
-                            Type::Builtin(Builtin::I32),
-                        ) {
-                            Ok(val) => value = Some(val),
-                            Err(_) => {
-                                value = Some(Value::from_inner(
-                                    pair.into_inner(),
-                                    Type::Builtin(Builtin::Str),
-                                )?);
-                                ty = Some(EnumTy::Str);
+                    let sp = Ident::from_pair_span(pair)?;
+                    ident = Some(sp.value);
+                },
+                Rule::eq_value => {
+                    match &ty {
+                        Some(t) => {
+                            let v = Value::from_inner(
+                                pair.into_inner(),
+                                Type::<Option<usize>>::Builtin(t.builtin()),
+                            )?;
+                            ty = Some(EnumTy::from_value(&v));
+                            value = Some(v);
+                        },
+                        None => {
+                            match Value::from_inner(
+                                pair.clone().into_inner(),
+                                TypeUnsealed::Builtin(Builtin::I32),
+                            ) {
+                                Ok(val) => value = Some(val),
+                                Err(_) => {
+                                    value = Some(Value::from_inner(
+                                        pair.into_inner(),
+                                        TypeUnsealed::Builtin(Builtin::Str),
+                                    )?);
+                                    ty = Some(EnumTy::Str);
+                                },
                             }
-                        }
+                        },
                     }
                 },
-                _ => {}
+                _ => {},
             }
         }
         if ident.is_none() {
@@ -72,6 +79,7 @@ impl EnumValue {
         }
         Ok(Self {
             comment,
+            meta: vec![],
             ident: ident.unwrap(),
             ty: ty.unwrap_or(EnumTy::Int),
             value: value.unwrap_or(default_value),
@@ -103,15 +111,20 @@ impl EnumTy {
 }
 
 #[derive(bon::Builder, Debug, Clone, PartialEq)]
-pub struct EnumDef {
+pub struct EnumDef<V> {
     pub comment: String,
     pub ty: EnumTy,
     pub ident: Ident,
     pub values: Vec<EnumValue>,
+    pub meta: Vec<Meta>,
+    pub version: V,
 }
 
-impl EnumDef {
-    pub fn get<'a>(&'a self, item: Ident) -> Option<&'a EnumValue> {
+impl<V> EnumDef<V> {
+    pub fn get(
+        &self,
+        item: Ident,
+    ) -> Option<&EnumValue> {
         let obj = item.object().qualified_path();
         self.values
             .iter()
@@ -119,7 +132,7 @@ impl EnumDef {
     }
 }
 
-impl FromInner for EnumDef {
+impl<V: Default> FromInner for EnumDef<V> {
     fn from_inner(pairs: Pairs<Rule>) -> crate::Result<Self> {
         let mut ident = None;
         let mut values = Vec::new();
@@ -130,10 +143,11 @@ impl FromInner for EnumDef {
             match pair.as_rule() {
                 Rule::singleline_comment | Rule::multiline_comment => {
                     pending_comment += &take_comment(Pairs::single(pair));
-                }
+                },
                 Rule::ident | Rule::name => {
-                    ident = Some(Ident::from_inner(Pairs::single(pair))?);
-                }
+                    let sp = Ident::from_pair_span(pair)?;
+                    ident = Some(sp.value);
+                },
                 Rule::enum_list => {
                     for (i, v) in pair.into_inner().enumerate() {
                         let default_value = match ty {
@@ -149,7 +163,7 @@ impl FromInner for EnumDef {
                         pending_comment.clear();
                         values.push(e);
                     }
-                }
+                },
                 _ => {
                     return Err(crate::Error::defs::<Self, _>([
                         Rule::enum_list,
@@ -158,7 +172,7 @@ impl FromInner for EnumDef {
                         Rule::singleline_comment,
                         Rule::multiline_comment,
                     ]));
-                }
+                },
             }
         }
         if ident.is_none() {
@@ -169,13 +183,48 @@ impl FromInner for EnumDef {
             ident: ident.unwrap(),
             values,
             ty: ty.unwrap(),
+            meta: Vec::new(),
+            version: V::default(),
         })
     }
 }
 
-impl Commentable for EnumDef {
-    fn comment(&mut self, comment: String) {
+impl<V> Commentable for EnumDef<V> {
+    fn comment(
+        &mut self,
+        comment: String,
+    ) {
         self.comment += &comment;
+    }
+}
+
+impl<V: Default> FromPairSpan for EnumDef<V> {
+    fn from_pair_span(pair: pest::iterators::Pair<'_, Rule>) -> crate::Result<Spanned<Self>> {
+        let span = pair.as_span();
+        let start = span.start();
+        let end = span.end();
+        let value = EnumDef::from_inner(pair.into_inner())
+            .map_err(crate::Error::then_with_span(start, end))?;
+        Ok(Spanned::new(start, end, value))
+    }
+}
+
+pub type EnumSealed = EnumDef<usize>;
+pub type EnumUnsealed = EnumDef<Option<usize>>;
+
+impl EnumUnsealed {
+    pub fn seal(
+        self,
+        file_version: usize,
+    ) -> EnumSealed {
+        EnumDef {
+            comment: self.comment,
+            ty: self.ty,
+            ident: self.ident,
+            values: self.values,
+            meta: self.meta,
+            version: self.version.unwrap_or(file_version),
+        }
     }
 }
 
@@ -189,6 +238,7 @@ mod test {
             .comment("".into())
             .ident("a".into())
             .ty(EnumTy::Int)
+            .meta(vec![])
             .value(Value::I32(42))
             .build();
 
@@ -196,6 +246,7 @@ mod test {
             .comment("".into())
             .ident("b".into())
             .ty(EnumTy::Int)
+            .meta(vec![])
             .value(Value::I32(42))
             .build();
 
@@ -204,6 +255,8 @@ mod test {
             .ident("some_enum".into())
             .ty(EnumTy::Int)
             .values(vec![v1, v2])
+            .meta(Vec::new())
+            .version(1_usize)
             .build();
 
         let g1 = def.get("some_enum::a".into()).unwrap();

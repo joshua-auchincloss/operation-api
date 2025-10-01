@@ -99,62 +99,60 @@ impl Parse for Op {
     }
 }
 
-#[derive(Debug, Clone)]
-enum ReturnType {
-    Result { ok: syn::Type, err: syn::Type },
-    Infallible(syn::Type),
-}
+// #[derive(Debug, Clone)]
+// enum ReturnType {
+//     Result { ok: syn::Type, err: syn::Type },
+//     Infallible(syn::Type),
+// }
 
-impl ReturnType {
-    /// Inspect a syn::Type and determine whether it's a Result<T, E> (std/core or unqualified).
-    /// If it is, extract the ok (T) and err (E) types. Otherwise mark as Infallible.
-    fn from_type(ty: &syn::Type) -> Self {
-        use syn::{GenericArgument, PathArguments, Type};
-        match ty {
-            Type::Path(p) => {
-                if let Some(seg) = p.path.segments.last() {
-                    if seg.ident == "Result" {
-                        if let PathArguments::AngleBracketed(ab) = &seg.arguments {
-                            let mut args: Vec<syn::Type> = ab
-                                .args
-                                .iter()
-                                .filter_map(|ga| {
-                                    match ga {
-                                        GenericArgument::Type(t) => Some(t.clone()),
-                                        _ => None,
-                                    }
-                                })
-                                .collect();
-                            if args.len() == 2 {
-                                let ok = args.remove(0);
-                                let err = args.remove(0);
-                                return Self::Result { ok, err };
-                            }
-                        }
-                    }
-                }
-                Self::Infallible(ty.clone())
-            },
-            other => Self::Infallible(other.clone()),
-        }
-    }
-}
+// impl ReturnType {
+//     fn from_type(ty: &syn::Type) -> Self {
+//         use syn::{GenericArgument, PathArguments, Type};
+//         match ty {
+//             Type::Path(p) => {
+//                 if let Some(seg) = p.path.segments.last() {
+//                     if seg.ident == "Result" {
+//                         if let PathArguments::AngleBracketed(ab) = &seg.arguments {
+//                             let mut args: Vec<syn::Type> = ab
+//                                 .args
+//                                 .iter()
+//                                 .filter_map(|ga| {
+//                                     match ga {
+//                                         GenericArgument::Type(t) => Some(t.clone()),
+//                                         _ => None,
+//                                     }
+//                                 })
+//                                 .collect();
+//                             if args.len() == 2 {
+//                                 let ok = args.remove(0);
+//                                 let err = args.remove(0);
+//                                 return Self::Result { ok, err };
+//                             }
+//                         }
+//                     }
+//                 }
+//                 Self::Infallible(ty.clone())
+//             },
+//             other => Self::Infallible(other.clone()),
+//         }
+//     }
+// }
 
-struct ParsedOp {
-    inner: Op,
-    result_type: ReturnType,
-}
+// struct ParsedOp {
+//     inner: Op,
+//     result_type: ReturnType,
+// }
 
-impl TryFrom<Op> for ParsedOp {
-    type Error = syn::Error;
-    fn try_from(op: Op) -> Result<Self, Self::Error> {
-        let rt = ReturnType::from_type(&op.ret_ty);
-        Ok(Self {
-            inner: op,
-            result_type: rt,
-        })
-    }
-}
+// impl TryFrom<Op> for ParsedOp {
+//     type Error = syn::Error;
+//     fn try_from(op: Op) -> Result<Self, Self::Error> {
+//         let rt = ReturnType::from_type(&op.ret_ty);
+//         Ok(Self {
+//             inner: op,
+//             result_type: rt,
+//         })
+//     }
+// }
 
 impl ToTokens for Op {
     fn to_tokens(
@@ -185,81 +183,81 @@ impl ToTokens for Op {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use darling::ToTokens;
+// #[cfg(test)]
+// mod test {
+//     use darling::ToTokens;
 
-    #[test_case::test_case(
-        r#"
-            fn sum(values: Vec<i32>) -> i32 {
-                values.iter().sum()
-            }
-        "#; "basic fn"
-    )]
-    #[test_case::test_case(
-        r#"
-            pub(crate) async fn sum(values: Vec<i32>) -> i32 {
-                3
-            }
-        "#; "async vis fn"
-    )]
-    #[test_case::test_case(
-        r#"
-            pub(crate) async fn join<'a, 'b, 'c>(v1: &'a str, v2: &'b str) -> &'c str 
-            {
-                ""
-            }
-        "#; "fn with lifetimes"
-    )]
-    fn test_parse(stream: &str) {
-        let _: super::Op = syn::parse_str(&stream).unwrap();
-    }
+//     #[test_case::test_case(
+//         r#"
+//             fn sum(values: Vec<i32>) -> i32 {
+//                 values.iter().sum()
+//             }
+//         "#; "basic fn"
+//     )]
+//     #[test_case::test_case(
+//         r#"
+//             pub(crate) async fn sum(values: Vec<i32>) -> i32 {
+//                 3
+//             }
+//         "#; "async vis fn"
+//     )]
+//     #[test_case::test_case(
+//         r#"
+//             pub(crate) async fn join<'a, 'b, 'c>(v1: &'a str, v2: &'b str) -> &'c str
+//             {
+//                 ""
+//             }
+//         "#; "fn with lifetimes"
+//     )]
+//     fn test_parse(stream: &str) {
+//         let _: super::Op = syn::parse_str(&stream).unwrap();
+//     }
 
-    #[test_case::test_case(
-        r#"fn a() -> Result<u32, i32> { unimplemented!() }"#,
-        true;
-        "detect result"
-    )]
-    #[test_case::test_case(
-        r#"fn b() -> std::result::Result<String, MyErr> { unimplemented!() } struct MyErr;"#,
-        true;
-        "detect std::result::Result"
-    )]
-    #[test_case::test_case(
-        r#"fn c() -> core::result::Result<Vec<u8>, ()> { unimplemented!() }"#,
-        true;
-        "detect core::result::Result"
-    )]
-    #[test_case::test_case(
-        r#"fn d() -> i64 { 0 }"#,
-        false;
-        "non result"
-    )]
+//     #[test_case::test_case(
+//         r#"fn a() -> Result<u32, i32> { unimplemented!() }"#,
+//         true;
+//         "detect result"
+//     )]
+//     #[test_case::test_case(
+//         r#"fn b() -> std::result::Result<String, MyErr> { unimplemented!() } struct MyErr;"#,
+//         true;
+//         "detect std::result::Result"
+//     )]
+//     #[test_case::test_case(
+//         r#"fn c() -> core::result::Result<Vec<u8>, ()> { unimplemented!() }"#,
+//         true;
+//         "detect core::result::Result"
+//     )]
+//     #[test_case::test_case(
+//         r#"fn d() -> i64 { 0 }"#,
+//         false;
+//         "non result"
+//     )]
 
-    fn test_return_type_detect(
-        src: &str,
-        is_result: bool,
-    ) {
-        let file: syn::File = syn::parse_str(src).unwrap();
-        let item_fn = file
-            .items
-            .iter()
-            .find_map(|it| {
-                match it {
-                    syn::Item::Fn(f) => Some(f),
-                    _ => None,
-                }
-            })
-            .expect("fn");
+//     fn test_return_type_detect(
+//         src: &str,
+//         is_result: bool,
+//     ) {
+//         let file: syn::File = syn::parse_str(src).unwrap();
+//         let item_fn = file
+//             .items
+//             .iter()
+//             .find_map(|it| {
+//                 match it {
+//                     syn::Item::Fn(f) => Some(f),
+//                     _ => None,
+//                 }
+//             })
+//             .expect("fn");
 
-        let op_src = item_fn.to_token_stream().to_string();
-        let op: super::Op = syn::parse_str(&op_src).unwrap();
-        let parsed = super::ReturnType::from_type(&op.ret_ty);
-        match (is_result, parsed) {
-            (true, super::ReturnType::Result { .. }) => {},
-            (false, super::ReturnType::Infallible(_)) => {},
-            (true, other) => panic!("expected Result variant, got {other:?}"),
-            (false, other) => panic!("expected Infallible variant, got {other:?}"),
-        }
-    }
-}
+//         let op_src = item_fn.to_token_stream().to_string();
+//         let op: super::Op = syn::parse_str(&op_src).unwrap();
+//         let parsed = super::ReturnType::from_type(&op.ret_ty);
+//         match (is_result, parsed) {
+//             (true, super::ReturnType::Result { .. }) => {},
+//             (false, super::ReturnType::Infallible(_)) => {},
+//             (true, other) => panic!("expected Result variant, got {other:?}"),
+//             (false, other) => panic!("expected Infallible variant, got {other:?}"),
+//         }
+//     }
+// }

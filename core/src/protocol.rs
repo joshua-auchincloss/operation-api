@@ -1,4 +1,4 @@
-use crate::{Defined, Typed};
+use crate::Typed;
 
 #[derive(serde::Serialize)]
 #[serde(untagged)]

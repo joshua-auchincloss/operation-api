@@ -4,4 +4,3 @@ namespace test;
 struct test_arrays {
     a: str[]
 };
-

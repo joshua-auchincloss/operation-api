@@ -28,10 +28,10 @@ value = _{ number | quoted }
 eq_value = { eq ~ value }
 
 
-outer_meta = @{ "#" ~ "[" ~ meta_value ~ "]" }
-inner_meta = @{ "#" ~ "!" ~ "[" ~ meta_value ~ "]" }
+outer_meta = { "#" ~ "[" ~ meta_value ~ "]" }
+inner_meta = { "#" ~ "!" ~ "[" ~ meta_value ~ "]" }
 
-meta_value = @{ name ~ "(" ~ value ~ ")" }
+meta_value = { name ~ "(" ~ value ~ ")" }
 
 // args
 arg = {
@@ -93,20 +93,31 @@ oneof = {
      oneof_kw ~ type_operand ~ ("|" ~ type_operand)+
 }
 
+oneof_arg = {
+    (name ~ "(" ~ typ ~ ")") | ( name ~ "{" ~ arg_list ~ "}" )
+}
+
+oneof_arglist = {
+    (oneof_arg ~ ("," ~ (!"\n" ~ singleline_comment)* ~ oneof_arg)* ~ ("," ~ (!"\n" ~ singleline_comment)*)? )?
+}
+
 array = { "[" ~ "]" }
 typ = { (oneof | type_operand) ~ array? }
 
 // top level declarations
 oneof_kw = _{ "oneof" }
+oneof_def = {
+    oneof_kw ~ name ~ "{" ~ oneof_arglist ~ "}"
+}
 
 type_kw = _{ "type" }
 type_def = {
-    outer_meta? ~ type_kw ~ name ~ eq ~ typ
+    type_kw ~ name ~ eq ~ typ
 }
 
 struct_kw = _{ "struct" }
 struct_def = {
-    outer_meta? ~ struct_kw ~ name ~ "{" ~ arg_list ~ "}"
+    struct_kw ~ name ~ "{" ~ arg_list ~ "}"
 }
 
 import_kw = _{ "import" }
@@ -121,7 +132,7 @@ namespace_def = {
 
 enum_kw = _{ "enum" }
 enum_def = {
-    outer_meta? ~ enum_kw ~ name ~ "{" ~ enum_list ~ "}" 
+    enum_kw ~ name ~ "{" ~ enum_list ~ "}" 
 }
 
 // reserved keywords
@@ -136,7 +147,7 @@ keywords = _{
 payloads = {
     SOI ~ ( 
         comment 
-        | ( (namespace_def | import_def | type_def | struct_def | enum_def) ~ ";" )
+        | ( outer_meta* ~ (namespace_def | import_def | type_def | oneof_def | struct_def | enum_def) ~ ";" )
         | inner_meta
     )* ~ EOI
 }

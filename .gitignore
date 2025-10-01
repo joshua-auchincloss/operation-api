@@ -8,3 +8,4 @@
 *.rlib
 *.dylib
 /python-sdk
+notes.md

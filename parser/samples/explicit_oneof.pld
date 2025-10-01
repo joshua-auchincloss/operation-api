@@ -1,0 +1,10 @@
+namespace test;
+
+#![version(1)]
+
+oneof complex_oneof {
+    a(i32),
+    b {
+        desc: string
+    }
+};

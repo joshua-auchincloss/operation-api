@@ -1,61 +1,114 @@
-use std::{fmt::Display, future::pending, path::PathBuf};
+use std::path::PathBuf;
 
-use pest::iterators::{Pair, Pairs};
+use pest::iterators::Pairs;
 
-use crate::parser::Rule;
+use crate::{defs::meta::MetaAttribute, parser::Rule};
 
 use crate::defs::*;
 
 #[derive(Debug, Clone)]
-pub enum PayloadTypes {
-    Namespace(NamespaceDef),
-    Type(TypeDef),
-    Message(MessageDef),
-    Import(ImportDef),
-    Enum(EnumDef),
+pub enum PayloadTypes<V> {
+    Import(Spanned<ImportDef>),
+    Namespace(Spanned<NamespaceDef<V>>),
+    Type(Spanned<TypeDef<V>>),
+    Enum(Spanned<EnumDef<V>>),
+    Struct(Spanned<StructDef<V>>),
 }
 
-impl PayloadTypes {
-    pub fn unwrap_namespace(self) -> NamespaceDef {
+pub type PayloadTypesSealed = PayloadTypes<usize>;
+pub type PayloadTypesUnsealed = PayloadTypes<Option<usize>>;
+
+impl<V> PayloadTypes<V> {
+    pub fn span(&self) -> (usize, usize) {
         match self {
-            Self::Namespace(def) => def,
+            Self::Namespace(s) => (s.start, s.end),
+            Self::Type(s) => (s.start, s.end),
+            Self::Struct(s) => (s.start, s.end),
+            Self::Import(s) => (s.start, s.end),
+            Self::Enum(s) => (s.start, s.end),
+        }
+    }
+
+    pub fn version(&self) -> Option<&V> {
+        match self {
+            Self::Namespace(..) => None,
+            Self::Import(..) => None,
+            Self::Enum(enm) => Some(&enm.version),
+            Self::Struct(def) => Some(&def.version),
+            Self::Type(ty) => Some(&ty.version),
+        }
+    }
+
+    pub fn unwrap_namespace(self) -> NamespaceDef<V> {
+        match self {
+            Self::Namespace(def) => def.value,
             _ => panic!("expected namespace"),
         }
     }
 
-    pub fn unwrap_type(self) -> TypeDef {
+    pub fn unwrap_type(self) -> TypeDef<V> {
         match self {
-            Self::Type(def) => def,
+            Self::Type(def) => def.value,
             _ => panic!("expected type"),
         }
     }
 
-    pub fn unwrap_message(self) -> MessageDef {
+    pub fn unwrap_struct(self) -> StructDef<V> {
         match self {
-            Self::Message(def) => def,
-            _ => panic!("expected message"),
+            Self::Struct(def) => def.value,
+            _ => panic!("expected struct"),
         }
     }
 
     pub fn unwrap_import(self) -> ImportDef {
         match self {
-            Self::Import(def) => def,
+            Self::Import(def) => def.value,
             _ => panic!("expected import"),
         }
     }
 
-    pub fn unwrap_enum(self) -> EnumDef {
+    pub fn unwrap_enum(self) -> EnumDef<V> {
         match self {
-            Self::Enum(def) => def,
+            Self::Enum(def) => def.value,
             _ => panic!("expected enum"),
         }
     }
 }
 
-#[derive(Debug, Clone, bon::Builder)]
+impl PayloadTypesUnsealed {
+    pub fn seal(
+        self,
+        file_version: usize,
+    ) -> PayloadTypesSealed {
+        match self {
+            Self::Struct(s) => {
+                PayloadTypesSealed::Struct(Spanned::new(s.start, s.end, s.value.seal(file_version)))
+            },
+            Self::Type(t) => {
+                PayloadTypesSealed::Type(Spanned::new(t.start, t.end, t.value.seal(file_version)))
+            },
+            Self::Namespace(n) => {
+                PayloadTypesSealed::Namespace(Spanned::new(
+                    n.start,
+                    n.end,
+                    n.value.seal(file_version),
+                ))
+            },
+            Self::Enum(e) => {
+                PayloadTypesSealed::Enum(Spanned::new(e.start, e.end, e.value.seal(file_version)))
+            },
+            Self::Import(i) => PayloadTypesSealed::Import(i),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Payload {
-    pub(crate) source: PathBuf,
-    pub(crate) defs: Vec<PayloadTypes>,
+    pub source: PathBuf,
+    pub defs: Vec<PayloadTypesSealed>,
+    pub outer_meta: Vec<Meta>,
+    pub inner_meta: Vec<Meta>,
+    pub version: Option<usize>,
 }
 
 impl Payload {
@@ -63,8 +116,13 @@ impl Payload {
         source: PathBuf,
         pairs: Pairs<crate::parser::Rule>,
     ) -> crate::Result<Self> {
-        let mut defs = vec![];
+        let mut defs: Vec<PayloadTypesUnsealed> = vec![];
+
+        let mut outer_meta: Vec<Meta> = Vec::new();
+        let mut inner_meta: Vec<Meta> = Vec::new();
+        let mut pending_outer_item_meta: Vec<Meta> = Vec::new();
         let mut pending_comment: Option<String> = None;
+
         for pair in pairs {
             let rule = pair.as_rule();
             tracing::trace!("rule: {rule:#?}");
@@ -72,56 +130,68 @@ impl Payload {
                 Rule::payloads => return Self::build(source, pair.into_inner()),
                 Rule::type_def => {
                     tracing::trace!("found singular_typedef");
-                    let mut ty = TypeDef::from_inner(pair.into_inner())?;
-                    apply_pending_if_forward(&mut ty, &mut pending_comment);
+                    let mut ty = TypeDefUnsealed::from_pair_span(pair)?;
+                    apply_pending_if_forward(&mut ty.value, &mut pending_comment);
+                    apply_pending_meta(&mut ty.value.meta, &mut pending_outer_item_meta);
 
-                    tracing::trace!("type {ty:#?}");
-                    defs.push(PayloadTypes::Type(ty));
+                    tracing::trace!("type {:#?}", ty.value);
+                    defs.push(PayloadTypesUnsealed::Type(ty));
                 },
                 Rule::struct_def => {
-                    tracing::trace!("found message");
-                    let mut msg = MessageDef::from_inner(pair.into_inner())?;
-                    apply_pending_if_forward(&mut msg, &mut pending_comment);
+                    tracing::trace!("found struct");
+                    let mut st = StructUnsealed::from_pair_span(pair)?;
+                    apply_pending_if_forward(&mut st.value, &mut pending_comment);
+                    apply_pending_meta(&mut st.value.meta, &mut pending_outer_item_meta);
 
-                    tracing::trace!("message {msg:#?}");
-                    defs.push(PayloadTypes::Message(msg));
+                    tracing::trace!("struct {:#?}", st.value);
+                    defs.push(PayloadTypesUnsealed::Struct(st));
                 },
                 Rule::import_def => {
                     tracing::trace!("found import");
-                    let mut import = ImportDef::from_inner(pair.into_inner())?;
-                    apply_pending_if_forward(&mut import, &mut pending_comment);
+                    let mut import = ImportDef::from_pair_span(pair)?;
+                    apply_pending_if_forward(&mut import.value, &mut pending_comment);
+                    apply_pending_meta(&mut import.value.meta, &mut pending_outer_item_meta);
 
-                    tracing::trace!("import {import:#?}");
-                    defs.push(PayloadTypes::Import(import));
+                    tracing::trace!("import {:#?}", import.value);
+                    defs.push(PayloadTypesUnsealed::Import(import));
                 },
                 Rule::namespace_def => {
                     tracing::trace!("found namespace");
-                    let mut ns = NamespaceDef::from_inner(pair.into_inner())?;
-                    apply_pending_if_forward(&mut ns, &mut pending_comment);
+                    let mut ns = NamespaceUnsealed::from_pair_span(pair)?;
+                    apply_pending_if_forward(&mut ns.value, &mut pending_comment);
+                    apply_pending_meta(&mut ns.value.meta, &mut pending_outer_item_meta);
 
-                    tracing::trace!("namespace {ns:#?}");
-                    defs.push(PayloadTypes::Namespace(ns));
+                    tracing::trace!("namespace {:#?}", ns.value);
+                    defs.push(PayloadTypesUnsealed::Namespace(ns));
                 },
                 Rule::enum_def => {
                     tracing::trace!("found enum");
-                    let mut enum_def = EnumDef::from_inner(pair.into_inner())?;
-                    apply_pending_if_forward(&mut enum_def, &mut pending_comment);
+                    let mut enum_def = EnumUnsealed::from_pair_span(pair)?;
+                    apply_pending_if_forward(&mut enum_def.value, &mut pending_comment);
+                    apply_pending_meta(&mut enum_def.value.meta, &mut pending_outer_item_meta);
 
-                    tracing::trace!("enum {enum_def:#?}");
-                    defs.push(PayloadTypes::Enum(enum_def));
+                    tracing::trace!("enum {:#?}", enum_def.value);
+                    defs.push(PayloadTypesUnsealed::Enum(enum_def));
                 },
                 Rule::multiline_comment | Rule::comment => {
                     tracing::trace!("found multiline comment");
                     pending_comment = Some(take_comment(Pairs::single(pair.clone())));
                 },
+                Rule::inner_meta => {
+                    inner_meta.push(Meta::parse(MetaAttribute::from_pair_span(pair)?)?);
+                },
+                Rule::outer_meta => {
+                    let meta = Meta::parse(MetaAttribute::from_pair_span(pair)?)?;
+                    if defs.is_empty() {
+                        outer_meta.push(meta);
+                    } else {
+                        pending_outer_item_meta.push(meta);
+                    }
+                },
                 Rule::singleline_comment => {
                     tracing::trace!("found single line comment");
                     let comment = take_comment(Pairs::single(pair.clone()));
                     tracing::info!("comment: '{:#?}' '{comment:#?}'", pair.as_str());
-
-                    // if comment.is_empty() {
-                    //     continue;
-                    // }
 
                     let last = if defs.is_empty() {
                         None
@@ -133,32 +203,27 @@ impl Payload {
                     match last {
                         Some(last) => {
                             match last {
-                                PayloadTypes::Import(import) => {
+                                PayloadTypesUnsealed::Import(import) => {
                                     tracing::trace!(
                                         "commenting on import: '{comment}' -> {import:#?}"
                                     );
-
-                                    import.comment(comment);
+                                    import.value.comment(comment);
                                 },
-                                PayloadTypes::Message(msg) => {
-                                    tracing::trace!("commenting on msg: '{comment}' -> {msg:#?}");
-
-                                    msg.comment(comment);
+                                PayloadTypesUnsealed::Struct(st) => {
+                                    tracing::trace!("commenting on struct: '{comment}' -> {st:#?}");
+                                    st.value.comment(comment);
                                 },
-                                PayloadTypes::Namespace(ns) => {
+                                PayloadTypesUnsealed::Namespace(ns) => {
                                     tracing::trace!("commenting on ns: '{comment}' -> {ns:#?}");
-
-                                    ns.comment(comment);
+                                    ns.value.comment(comment);
                                 },
-                                PayloadTypes::Type(ty) => {
+                                PayloadTypesUnsealed::Type(ty) => {
                                     tracing::trace!("commenting on ns: '{comment}' -> {ty:#?}");
-
-                                    ty.comment(comment);
+                                    ty.value.comment(comment);
                                 },
-                                PayloadTypes::Enum(enm) => {
+                                PayloadTypesUnsealed::Enum(enm) => {
                                     tracing::trace!("commenting on enum: '{comment}' -> {enm:#?}");
-
-                                    enm.comment(comment);
+                                    enm.value.comment(comment);
                                 },
                             }
                         },
@@ -167,27 +232,85 @@ impl Payload {
                         },
                     }
                 },
-                Rule::inner_meta => {
-                    panic!("inner meta")
-                },
+
                 Rule::EOI => {
                     break;
                 },
                 rule => {
                     tracing::error!("unhandled rule: {rule:#?}");
+                    let sp = pair.as_span();
                     return Err(crate::Error::defs::<Self, _>([
                         Rule::import_def,
                         Rule::struct_def,
                         Rule::type_def,
                         Rule::payloads,
-                    ]));
+                    ])
+                    .with_span(sp.start(), sp.end()));
                 },
             }
         }
         tracing::trace!("done");
-        Ok(Self::builder()
-            .source(source)
-            .defs(defs)
-            .build())
+
+        let version = resolve_version(&defs, &outer_meta, &inner_meta)?;
+        let sealed_defs: Vec<PayloadTypesSealed> = if let Some(v) = version {
+            defs.into_iter().map(|d| d.seal(v)).collect()
+        } else {
+            defs.into_iter().map(|d| d.seal(0)).collect()
+        };
+
+        Ok(Payload {
+            source,
+            defs: sealed_defs,
+            version,
+            outer_meta,
+            inner_meta,
+        })
     }
+
+    pub fn version(&self) -> Option<usize> {
+        self.version
+    }
+
+    pub fn outer_file_meta(&self) -> &[Meta] {
+        &self.outer_meta
+    }
+
+    pub fn inner_file_meta(&self) -> &[Meta] {
+        &self.inner_meta
+    }
+}
+
+mod test {}
+
+fn resolve_version(
+    defs: &[PayloadTypesUnsealed],
+    outer_meta: &[Meta],
+    inner_meta: &[Meta],
+) -> crate::Result<Option<usize>> {
+    use crate::utils::{detect_version_conflict, extract_versions};
+
+    let outer_versions = extract_versions(outer_meta);
+    let outer_val = detect_version_conflict(&outer_versions)?;
+
+    let inner_val = if outer_val.is_none() {
+        let inner_versions = extract_versions(inner_meta);
+        detect_version_conflict(&inner_versions)?
+    } else {
+        None
+    };
+
+    for def in defs {
+        let metas: &Vec<Meta> = match &def {
+            PayloadTypesUnsealed::Struct(s) => &s.value.meta,
+            PayloadTypesUnsealed::Type(t) => &t.value.meta,
+            PayloadTypesUnsealed::Import(i) => &i.value.meta,
+            PayloadTypesUnsealed::Namespace(n) => &n.value.meta,
+            PayloadTypesUnsealed::Enum(e) => &e.value.meta,
+        };
+        let versions = extract_versions(metas);
+        // ignore the returned canonical value here; we only care if an error is raised.
+        let _ = detect_version_conflict(&versions)?;
+    }
+
+    Ok(outer_val.or(inner_val))
 }

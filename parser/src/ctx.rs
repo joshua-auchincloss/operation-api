@@ -1,30 +1,44 @@
 use std::{
-    cell::{Ref, RefCell, RefMut},
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::{Mutex, RwLock, RwLockReadGuard},
+    sync::{RwLock, RwLockReadGuard},
 };
 
 use miette::{Context, IntoDiagnostic};
 
 use crate::{
-    defs::{EnumDef, Ident, ImportDef, MessageDef, NamespaceDef, Payload, PayloadTypes, TypeDef},
+    defs::{
+        EnumSealed, Ident, ImportDef, NamespaceSealed, Payload, PayloadTypesSealed, StructSealed,
+        TypeDefSealed,
+    },
     parser::PayloadParser,
-    utils::insert_unique_ident_or_err,
+    utils::insert_unique_ident_or_err_spanned,
 };
 
 pub trait GetCtx {
-    fn get<'a>(
-        &'a self,
+    fn get(
+        &self,
         ident: &Ident,
-    ) -> Option<PayloadTypes>;
-    fn must_get<'a>(
-        &'a self,
-        ident: &Ident,
-    ) -> crate::Result<PayloadTypes> {
-        match self.get(ident) {
+    ) -> Option<PayloadTypesSealed>;
+    fn get_spanned(
+        &self,
+        ident: &crate::defs::Spanned<Ident>,
+    ) -> Option<PayloadTypesSealed> {
+        self.get(&ident.value)
+    }
+    fn must_get(
+        &self,
+        ident: &crate::defs::Spanned<Ident>,
+    ) -> crate::Result<PayloadTypesSealed> {
+        match self.get_spanned(ident) {
             Some(rf) => Ok(rf),
-            None => Err(crate::Error::resolution(ident.clone())),
+            None => {
+                Err(crate::Error::resolution_spanned(
+                    ident.value.clone(),
+                    ident.start,
+                    ident.end,
+                ))
+            },
         }
     }
 }
@@ -33,15 +47,15 @@ pub trait GetCtx {
 pub struct NamespaceCtx {
     pub source: PathBuf,
 
-    pub namespace: NamespaceDef,
+    pub namespace: crate::defs::Spanned<NamespaceSealed>,
 
-    pub types: HashMap<Ident, TypeDef>,
+    pub types: HashMap<Ident, crate::defs::Spanned<TypeDefSealed>>,
 
-    pub messages: HashMap<Ident, MessageDef>,
+    pub structs: HashMap<Ident, crate::defs::Spanned<StructSealed>>,
 
-    pub enums: HashMap<Ident, EnumDef>,
+    pub enums: HashMap<Ident, crate::defs::Spanned<EnumSealed>>,
 
-    pub imports: Vec<ImportDef>,
+    pub imports: Vec<crate::defs::Spanned<ImportDef>>,
 }
 
 impl NamespaceCtx {
@@ -53,16 +67,13 @@ impl NamespaceCtx {
     }
 
     fn merge<T>(
-        ns: &NamespaceDef,
+        ns: &NamespaceSealed,
         values: &mut HashMap<Ident, T>,
         take_from: HashMap<Ident, T>,
     ) -> crate::Result<()> {
         for (ident, def) in take_from.into_iter() {
-            match values.insert(ident.clone(), def) {
-                Some(..) => {
-                    return Err(crate::Error::conflict(ns.ident.clone(), ident));
-                },
-                None => {},
+            if values.insert(ident.clone(), def).is_some() {
+                return Err(crate::Error::conflict(ns.ident.clone(), ident));
             }
         }
         Ok(())
@@ -75,38 +86,42 @@ impl NamespaceCtx {
         let mut other = other;
 
         Self::merge(&self.namespace, &mut self.types, other.types)?;
-        Self::merge(&self.namespace, &mut self.messages, other.messages)?;
+        Self::merge(&self.namespace, &mut self.structs, other.structs)?;
         Self::merge(&self.namespace, &mut self.enums, other.enums)?;
 
         self.imports.append(&mut other.imports);
 
-        self.imports = self
-            .imports
-            .clone()
-            .into_iter()
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect();
+        // deduplicate imports by path (keep first occurrence span)
+        let mut seen = HashSet::new();
+        self.imports.retain(|imp| {
+            let key = &imp.value.path;
+            if seen.contains(key) {
+                false
+            } else {
+                seen.insert(key.clone());
+                true
+            }
+        });
 
         Ok(())
     }
 }
 
 impl GetCtx for NamespaceCtx {
-    fn get<'a>(
-        &'a self,
+    fn get(
+        &self,
         ident: &Ident,
-    ) -> Option<PayloadTypes> {
+    ) -> Option<PayloadTypesSealed> {
         if let Some(ty) = self.types.get(ident) {
-            return Some(PayloadTypes::Type(ty.clone()));
+            return Some(PayloadTypesSealed::Type(ty.clone()));
         }
 
-        if let Some(msg) = self.messages.get(ident) {
-            return Some(PayloadTypes::Message(msg.clone()));
+        if let Some(msg) = self.structs.get(ident) {
+            return Some(PayloadTypesSealed::Struct(msg.clone()));
         }
 
         if let Some(enm) = self.enums.get(ident) {
-            return Some(PayloadTypes::Enum(enm.clone()));
+            return Some(PayloadTypesSealed::Enum(enm.clone()));
         }
         None
     }
@@ -133,66 +148,78 @@ impl TryFrom<Payload> for NamespaceCtx {
     fn try_from(value: Payload) -> crate::Result<Self> {
         let namespace = Self::builder();
 
-        let mut types = HashMap::new();
-        let mut messages = HashMap::new();
-        let mut enums = HashMap::new();
+        let mut types: HashMap<Ident, crate::defs::Spanned<TypeDefSealed>> = HashMap::new();
+        let mut structs: HashMap<Ident, crate::defs::Spanned<StructSealed>> = HashMap::new();
+        let mut enums: HashMap<Ident, crate::defs::Spanned<EnumSealed>> = HashMap::new();
 
         let mut imports = Vec::new();
 
-        let this = match value
+        let ns_spanned = match value
             .defs
             .iter()
-            .find(|ns| matches!(ns, PayloadTypes::Namespace(..)))
-            .map(Clone::clone)
-            .map(PayloadTypes::unwrap_namespace)
+            .find(|ns| matches!(ns, PayloadTypesSealed::Namespace(..)))
+            .cloned()
         {
-            Some(def) => def,
-            None => return Err(crate::Error::NsNotDeclared),
+            Some(PayloadTypesSealed::Namespace(ns)) => ns,
+            _ => return Err(crate::Error::NsNotDeclared),
         };
+        let this_ident_path = ns_spanned.value.ident.clone();
 
         for v in value.defs {
             match v {
-                PayloadTypes::Type(ty) => {
-                    insert_unique_ident_or_err(
-                        this.ident.clone(),
+                PayloadTypesSealed::Type(ty) => {
+                    let (start, end, ident) = (ty.start, ty.end, ty.value.ident.clone());
+                    let clone_for_insert = ty.clone();
+                    insert_unique_ident_or_err_spanned(
+                        this_ident_path.clone(),
                         &mut types,
-                        ty.ident.clone(),
-                        ty,
+                        ident,
+                        clone_for_insert,
+                        start,
+                        end,
                     )?
                 },
-                PayloadTypes::Message(msg) => {
-                    insert_unique_ident_or_err(
-                        this.ident.clone(),
-                        &mut messages,
-                        msg.ident.clone(),
-                        msg,
+                PayloadTypesSealed::Struct(msg) => {
+                    let (start, end, ident) = (msg.start, msg.end, msg.value.ident.clone());
+                    let clone_for_insert = msg.clone();
+                    insert_unique_ident_or_err_spanned(
+                        this_ident_path.clone(),
+                        &mut structs,
+                        ident,
+                        clone_for_insert,
+                        start,
+                        end,
                     )?
                 },
-                PayloadTypes::Enum(enm) => {
-                    insert_unique_ident_or_err(
-                        this.ident.clone(),
+                PayloadTypesSealed::Enum(enm) => {
+                    let (start, end, ident) = (enm.start, enm.end, enm.value.ident.clone());
+                    let clone_for_insert = enm.clone();
+                    insert_unique_ident_or_err_spanned(
+                        this_ident_path.clone(),
                         &mut enums,
-                        enm.ident.clone(),
-                        enm,
+                        ident,
+                        clone_for_insert,
+                        start,
+                        end,
                     )?;
                 },
-                PayloadTypes::Import(import) => imports.push(import),
-                PayloadTypes::Namespace(..) => {},
+                PayloadTypesSealed::Import(import) => imports.push(import),
+                PayloadTypesSealed::Namespace(..) => {},
             }
         }
 
         Ok(namespace
             .types(types)
             .imports(imports)
-            .messages(messages)
+            .structs(structs)
             .enums(enums)
-            .namespace(this)
+            .namespace(ns_spanned)
             .source(value.source)
             .build())
     }
 }
 
-#[derive(bon::Builder)]
+#[derive(bon::Builder, Default)]
 pub struct Ctx {
     sources: RwLock<Vec<NamespaceCtx>>,
 }
@@ -203,10 +230,10 @@ pub trait Parse {
         f: P,
     ) -> miette::Result<()>;
 
-    fn parse_data<'p, P: Into<PathBuf>>(
+    fn parse_data<P: Into<PathBuf>>(
         &self,
         source: P,
-        s: &'p str,
+        s: &str,
     ) -> miette::Result<()>;
 }
 
@@ -222,10 +249,10 @@ impl Parse for Ctx {
         Ok(())
     }
 
-    fn parse_data<'p, P: Into<PathBuf>>(
+    fn parse_data<P: Into<PathBuf>>(
         &self,
         source: P,
-        s: &'p str,
+        s: &str,
     ) -> miette::Result<()> {
         let source = source.into();
         if self
@@ -233,8 +260,7 @@ impl Parse for Ctx {
             .read()
             .unwrap()
             .iter()
-            .find(|it| it.source == source)
-            .is_some()
+            .any(|it| it.source == source)
         {
             return Ok(());
         }
@@ -252,9 +278,7 @@ impl Parse for Ctx {
 
 impl Ctx {
     pub fn new() -> Self {
-        Self::builder()
-            .sources(Default::default())
-            .build()
+        Self::default()
     }
 
     pub fn namespaces(&self) -> RwLockReadGuard<'_, Vec<NamespaceCtx>> {
@@ -272,10 +296,10 @@ impl Ctx {
 }
 
 impl GetCtx for Ctx {
-    fn get<'a>(
-        &'a self,
+    fn get(
+        &self,
         ident: &Ident,
-    ) -> Option<PayloadTypes> {
+    ) -> Option<PayloadTypesSealed> {
         let obj = ident.object();
         let find_ns = ident.namespace();
 
@@ -287,11 +311,11 @@ impl GetCtx for Ctx {
                 continue;
             }
             if let Some(ty) = ns.types.get(&obj) {
-                return Some(PayloadTypes::Type(ty.clone()));
-            } else if let Some(msg) = ns.messages.get(&obj) {
-                return Some(PayloadTypes::Message(msg.clone()));
+                return Some(PayloadTypesSealed::Type(ty.clone()));
+            } else if let Some(msg) = ns.structs.get(&obj) {
+                return Some(PayloadTypesSealed::Struct(msg.clone()));
             } else if let Some(enm) = ns.enums.get(&obj) {
-                return Some(PayloadTypes::Enum(enm.clone()));
+                return Some(PayloadTypesSealed::Enum(enm.clone()));
             }
         }
         None
@@ -306,17 +330,6 @@ pub fn parse_files<I: IntoIterator<Item = P>, P: AsRef<Path>>(files: I) -> miett
     ctx.resolve_imports()?;
     Ok(ctx)
 }
-
-// pub fn parse_with_std<P: AsRef<std::path::Path>, I: IntoIterator<Item = P>>(
-//     files: I,
-// ) -> miette::Result<Ctx> {
-//     let ctx = crate::payloads_std::get_std()?;
-//     for f in files {
-//         ctx.parse_file(f)?;
-//     }
-//     ctx.resolve_imports()?;
-//     Ok(ctx)
-// }
 
 #[cfg(test)]
 mod test {
@@ -334,6 +347,6 @@ mod test {
             .get(&"test::test_message".into())
             .expect("should find TestMessage");
 
-        assert!(matches!(msg, PayloadTypes::Message(..)));
+        assert!(matches!(msg, PayloadTypesSealed::Struct(..)));
     }
 }

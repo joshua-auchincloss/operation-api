@@ -1,5 +1,3 @@
-use payloadrs_parser::parser::PayloadParser;
-
 use std::sync::Once;
 
 const ONCE: Once = Once::new();
@@ -29,7 +27,10 @@ fn compile_err(src: &str) -> String {
     String::from_utf8_lossy(&tgt).into()
 }
 
-fn test_basic_compile_err(src: &str, expect: &str) {
+fn test_basic_compile_err(
+    src: &str,
+    expect: &str,
+) {
     compile();
 
     let err = compile_err(src);

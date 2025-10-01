@@ -1,57 +1,24 @@
 use std::path::{Path, PathBuf};
 
-use crate::{
-    Result,
-    defs::{FromInner, Payload},
-};
-use miette::{
-    Context, Diagnostic, IntoDiagnostic, LabeledSpan, NamedSource, SourceOffset, SourceSpan,
-};
-use pest::{Parser, iterators::Pairs};
+use crate::defs::Payload;
+use miette::{Context, IntoDiagnostic};
+use pest::Parser;
 use pest_derive::Parser;
-
-#[derive(thiserror::Error, Debug, Diagnostic)]
-#[error("parsing error")]
-struct SourceError {
-    #[source_code]
-    src: NamedSource<String>,
-
-    #[label("here")]
-    bad_bit: SourceSpan,
-
-    #[diagnostic(help)]
-    help: String,
-}
 
 #[derive(Parser)]
 #[grammar = "../grammar/ident.pest"]
 pub struct PayloadParser;
 
-fn labelled_span(error: &pest::error::Error<Rule>) -> SourceSpan {
-    match error.location {
-        pest::error::InputLocation::Pos(loc) => SourceSpan::new(loc.into(), 1),
-        pest::error::InputLocation::Span((start, end)) => {
-            SourceSpan::new(start.into(), (end - start).into())
-        },
-    }
-}
-
 impl PayloadParser {
-    pub fn parse_data<'p, P: Into<PathBuf>>(
+    pub fn parse_data<P: Into<PathBuf>>(
         source: P,
-        s: &'p str,
+        s: &str,
     ) -> miette::Result<Payload> {
         tracing::debug!("{s}");
         let source = source.into();
-        let parsed = Self::parse(Rule::payloads, s.as_ref()).map_err(|e| {
-            let src = NamedSource::new(source.clone().to_string_lossy().to_string(), s.to_string());
-
-            SourceError {
-                src,
-                bad_bit: labelled_span(&e),
-                help: e.variant.message().into(),
-            }
-        })?;
+        let parsed = Self::parse(Rule::payloads, s)
+            .map_err(crate::Error::from)
+            .map_err(|err| err.to_report_with(&source, s, None))?;
 
         // #[cfg(all(debug_assertions, not(feature = "bench")))]
         std::fs::write("parsed.out", format!("{parsed:#?}")).unwrap();

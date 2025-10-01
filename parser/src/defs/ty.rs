@@ -1,26 +1,29 @@
 use crate::defs::*;
 
-use std::{fmt::Display, future::pending, path::PathBuf};
-
-use pest::iterators::{Pair, Pairs};
+use pest::iterators::Pairs;
 
 use crate::parser::Rule;
 
 #[derive(Debug, Clone, bon::Builder, PartialEq)]
-pub struct TypeDef {
+pub struct TypeDef<V> {
     pub comment: String,
     pub ident: Ident,
-    pub ty: Type,
+    pub ty: Type<V>,
+    pub meta: Vec<Meta>,
+    pub version: V,
 }
 
-impl FromInner for TypeDef {
+impl<V: Default + Clone + std::fmt::Debug + PartialEq> FromInner for TypeDef<V> {
     fn from_inner(pairs: Pairs<crate::parser::Rule>) -> crate::Result<Self> {
         let mut ident = None;
-        let mut ty = None;
+        let mut ty: Option<Type<V>> = None;
         let mut comment = String::new();
         for pair in pairs {
             match pair.as_rule() {
-                Rule::ident | Rule::name => ident = Some(Ident::from_inner(Pairs::single(pair))?),
+                Rule::ident | Rule::name => {
+                    let sp = Ident::from_pair_span(pair)?;
+                    ident = Some(sp.value);
+                },
                 Rule::typ => ty = Some(Type::from_inner(pair.into_inner())?),
                 Rule::eq => {},
                 Rule::singleline_comment | Rule::multiline_comment => {
@@ -38,11 +41,13 @@ impl FromInner for TypeDef {
             comment,
             ident: ident.unwrap(),
             ty: ty.unwrap(),
+            meta: Vec::new(),
+            version: V::default(),
         })
     }
 }
 
-impl Commentable for TypeDef {
+impl<V> Commentable for TypeDef<V> {
     fn comment(
         &mut self,
         comment: String,
@@ -51,17 +56,27 @@ impl Commentable for TypeDef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-
-pub enum Type {
-    Builtin(Builtin),
-    Ident(Ident),
-    Union(Box<UnionType>),
-    Enum(EnumDef),
-    Array(Box<Type>),
+impl<V: Default + Clone + std::fmt::Debug + PartialEq> FromPairSpan for TypeDef<V> {
+    fn from_pair_span(pair: pest::iterators::Pair<'_, Rule>) -> crate::Result<Spanned<Self>> {
+        let span = pair.as_span();
+        let start = span.start();
+        let end = span.end();
+        let value = TypeDef::from_inner(pair.into_inner())
+            .map_err(crate::Error::then_with_span(start, end))?;
+        Ok(Spanned::new(start, end, value))
+    }
 }
 
-impl Type {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type<V> {
+    Builtin(Builtin),
+    Ident(Ident),
+    OneOf(Box<OneOfType<V>>),
+    Enum(EnumDef<V>),
+    Array(Box<Type<V>>),
+}
+
+impl<V: Clone + std::fmt::Debug + PartialEq> Type<V> {
     pub fn builtin(value: Builtin) -> Self {
         Self::Builtin(value)
     }
@@ -70,27 +85,23 @@ impl Type {
         Self::Ident(value.into())
     }
 
-    pub fn union(value: UnionType) -> Self {
-        Self::Union(Box::new(value))
+    pub fn oneof(value: OneOfType<V>) -> Self {
+        Self::OneOf(Box::new(value))
     }
 
-    pub fn array(value: Type) -> Self {
+    pub fn array(value: Type<V>) -> Self {
         Self::Array(Box::new(value))
     }
 }
 
-impl Type {
-    /// recursively flattens all union types into a single `Type`.
-    /// 1) this is a union, returns a new union with all nested unions flattened.
-    /// 2) it isnt a union, we return self
+impl<V: Clone + std::fmt::Debug + PartialEq> Type<V> {
     pub fn resolve_union(self) -> Self {
         match self {
-            Type::Union(union) => {
+            Type::OneOf(union) => {
                 let mut types = Vec::new();
                 for t in union.types {
                     match t {
-                        Type::Union(inner_union) if inner_union.kind == union.kind => {
-                            // flatten nested unions of the same kind
+                        Type::OneOf(inner_union) if inner_union.kind == union.kind => {
                             types.extend(
                                 inner_union
                                     .types
@@ -104,9 +115,10 @@ impl Type {
                 if types.len() == 1 {
                     types.into_iter().next().unwrap()
                 } else {
-                    Type::Union(Box::new(UnionType {
+                    Type::OneOf(Box::new(OneOfType {
                         types,
                         kind: union.kind,
+                        version: union.version,
                     }))
                 }
             },
@@ -115,7 +127,7 @@ impl Type {
     }
 }
 
-impl FromInner for Type {
+impl<V: Clone + std::fmt::Debug + PartialEq + Default> FromInner for Type<V> {
     fn from_inner(pairs: Pairs<crate::parser::Rule>) -> crate::Result<Self> {
         let mut root = None;
 
@@ -126,7 +138,7 @@ impl FromInner for Type {
                 },
                 Rule::type_operand => {
                     root = Some(
-                        Self::union(UnionType::from_inner(Pairs::single(pair))?).resolve_union(),
+                        Self::oneof(OneOfType::from_inner(Pairs::single(pair))?).resolve_union(),
                     );
                 },
                 Rule::ident => root = Some(Self::ident(Ident::from_inner(Pairs::single(pair))?)),
@@ -159,89 +171,138 @@ impl FromInner for Type {
     }
 }
 
+impl<V: Clone + std::fmt::Debug + PartialEq + Default> FromPairSpan for Type<V> {
+    fn from_pair_span(pair: pest::iterators::Pair<'_, Rule>) -> crate::Result<Spanned<Self>> {
+        let span = pair.as_span();
+        let start = span.start();
+        let end = span.end();
+        let value = Type::from_inner(pair.into_inner())
+            .map_err(crate::Error::then_with_span(start, end))?;
+        Ok(Spanned::new(start, end, value))
+    }
+}
+
+impl TypeUnsealed {
+    pub fn seal(
+        self,
+        file_version: usize,
+    ) -> TypeSealed {
+        match self {
+            Self::Array(arr) => TypeSealed::Array(Box::new(arr.seal(file_version))),
+            Self::Enum(e) => TypeSealed::Enum(e.seal(file_version)),
+            Self::OneOf(oneof) => TypeSealed::OneOf(Box::new(oneof.seal(file_version))),
+            Self::Builtin(ty) => TypeSealed::Builtin(ty),
+            Self::Ident(id) => TypeSealed::Ident(id),
+        }
+    }
+}
+pub type TypeSealed = Type<usize>;
+pub type TypeUnsealed = Type<Option<usize>>;
+pub type TypeDefSealed = TypeDef<usize>;
+pub type TypeDefUnsealed = TypeDef<Option<usize>>;
+
+impl TypeDefUnsealed {
+    pub fn seal(
+        self,
+        file_version: usize,
+    ) -> TypeDefSealed {
+        let ty = self.ty.seal(file_version);
+        TypeDef {
+            comment: self.comment,
+            ident: self.ident,
+            ty,
+            meta: self.meta,
+            version: self.version.unwrap_or(file_version),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
-    fn test_flatten_simple_union() {
-        let union = Type::Union(Box::new(UnionType {
+    fn test_flatten_simple_oneof() {
+        let oneof = Type::OneOf(Box::new(OneOfType {
             types: vec![Type::Builtin(Builtin::I32), Type::Builtin(Builtin::F32)],
-            kind: UnionKind::Or,
+            kind: OneOfKind::Or,
+            version: 1_usize,
         }));
-
-        let resolved = union.clone().resolve_union();
-        assert_eq!(resolved, union);
+        let resolved = oneof.clone().resolve_union();
+        assert_eq!(resolved, oneof);
     }
 
     #[test]
-    fn test_flatten_nested_union_same_kind() {
-        let nested_union = Type::Union(Box::new(UnionType {
+    fn test_flatten_nested_oneof_same_kind() {
+        let nested = Type::OneOf(Box::new(OneOfType {
             types: vec![
                 Type::Builtin(Builtin::I32),
-                Type::Union(Box::new(UnionType {
+                Type::OneOf(Box::new(OneOfType {
                     types: vec![Type::Builtin(Builtin::F32), Type::Builtin(Builtin::Bool)],
-                    kind: UnionKind::Or,
+                    kind: OneOfKind::Or,
+                    version: 1_usize,
                 })),
             ],
-            kind: UnionKind::Or,
+            kind: OneOfKind::Or,
+            version: 1_usize,
         }));
-
-        let resolved = nested_union.resolve_union();
-        let expected = Type::Union(Box::new(UnionType {
+        let resolved = nested.resolve_union();
+        let expected = Type::OneOf(Box::new(OneOfType {
             types: vec![
                 Type::Builtin(Builtin::I32),
                 Type::Builtin(Builtin::F32),
                 Type::Builtin(Builtin::Bool),
             ],
-            kind: UnionKind::Or,
+            kind: OneOfKind::Or,
+            version: 1_usize,
         }));
-
         assert_eq!(resolved, expected);
     }
 
     #[test]
-    fn test_flatten_nested_union_different_kind() {
-        let nested_union = Type::Union(Box::new(UnionType {
+    fn test_flatten_nested_oneof_different_kind_placeholder() {
+        let nested = Type::OneOf(Box::new(OneOfType {
             types: vec![
                 Type::Builtin(Builtin::I32),
-                Type::Union(Box::new(UnionType {
+                Type::OneOf(Box::new(OneOfType {
                     types: vec![Type::Builtin(Builtin::F32), Type::Builtin(Builtin::Bool)],
-                    kind: UnionKind::And,
+                    kind: OneOfKind::Or,
+                    version: 1_usize,
                 })),
             ],
-            kind: UnionKind::Or,
+            kind: OneOfKind::Or,
+            version: 1_usize,
         }));
-
-        let resolved = nested_union.resolve_union();
-        let expected = Type::Union(Box::new(UnionType {
+        let resolved = nested.resolve_union();
+        let expected = Type::OneOf(Box::new(OneOfType {
             types: vec![
                 Type::Builtin(Builtin::I32),
-                Type::Union(Box::new(UnionType {
+                Type::OneOf(Box::new(OneOfType {
                     types: vec![Type::Builtin(Builtin::F32), Type::Builtin(Builtin::Bool)],
-                    kind: UnionKind::And,
+                    kind: OneOfKind::Or,
+                    version: 1_usize,
                 })),
             ],
-            kind: UnionKind::Or,
+            kind: OneOfKind::Or,
+            version: 1_usize,
         }));
-
         assert_eq!(resolved, expected);
     }
 
     #[test]
-    fn test_flatten_single_type_union() {
-        let union = Type::Union(Box::new(UnionType {
+    fn test_flatten_single_type_oneof() {
+        let one = Type::OneOf(Box::new(OneOfType {
             types: vec![Type::Builtin(Builtin::I32)],
-            kind: UnionKind::Or,
+            kind: OneOfKind::Or,
+            version: 1_usize,
         }));
-
-        let resolved = union.resolve_union();
+        let resolved = one.resolve_union();
         assert_eq!(resolved, Type::Builtin(Builtin::I32));
     }
 
     #[test]
-    fn test_flatten_non_union_type() {
-        let ty = Type::Builtin(Builtin::I32);
+    fn test_flatten_non_oneof_type() {
+        let ty = TypeUnsealed::Builtin(Builtin::I32);
         let resolved = ty.clone().resolve_union();
         assert_eq!(resolved, ty);
     }

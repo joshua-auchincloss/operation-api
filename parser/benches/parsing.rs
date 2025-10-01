@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use payloadrs_parser::parser::PayloadParser;
+use operation_api_parser::parser::PayloadParser;
 use std::hint::black_box;
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -7,7 +7,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             PayloadParser::parse_data(
                 "dummy.pld",
-                black_box(include_str!("../samples/test_message.pld")),
+                black_box(include_str!("../samples/message_with_enum.pld")),
             )
             .unwrap()
         })
