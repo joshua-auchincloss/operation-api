@@ -4,7 +4,7 @@ use pest::iterators::Pairs;
 
 use crate::parser::Rule;
 
-#[derive(Debug, Clone, bon::Builder, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, bon::Builder, PartialEq, Hash)]
 pub struct ImportDef {
     pub comment: String,
     pub path: String,

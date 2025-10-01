@@ -30,7 +30,10 @@ impl SpanDiagnostic {
     ) -> Self {
         Self {
             src: NamedSource::new(path.to_string_lossy(), source.to_string()),
-            span: Some(SourceSpan::new(sp.start.into(), sp.end - sp.start)),
+            span: Some(SourceSpan::new(
+                sp.span.start.into(),
+                sp.span.end - sp.span.start,
+            )),
             message: message.into(),
             label: label.into(),
             help,

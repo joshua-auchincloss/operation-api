@@ -1,15 +1,15 @@
 pub mod builtin;
+pub mod comment;
 pub mod enums;
 pub mod ident;
 pub mod imports;
 pub mod meta;
 pub mod namespace;
 pub mod oneof;
+pub mod payload;
 pub mod struct_def;
 pub mod ty;
 pub mod value;
-
-pub mod payload;
 
 pub use builtin::*;
 pub use enums::*;
@@ -81,33 +81,35 @@ pub trait FromInner: Sized {
     fn from_inner(pairs: Pairs<crate::parser::Rule>) -> crate::Result<Self>;
 }
 
-#[derive(Debug, Clone)]
+pub mod span {
+    #[derive(Debug, Clone, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
+    pub struct Span {
+        pub start: usize,
+        pub end: usize,
+    }
+
+    impl Span {
+        pub fn new(
+            start: usize,
+            end: usize,
+        ) -> Self {
+            Self { start, end }
+        }
+
+        pub fn len(&self) -> usize {
+            self.end - self.start
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.len() == 0
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Hash)]
 pub struct Spanned<T> {
-    pub start: usize,
-    pub end: usize,
+    pub span: span::Span,
     pub value: T,
-}
-
-impl<T: PartialEq> PartialEq for Spanned<T> {
-    fn eq(
-        &self,
-        other: &Self,
-    ) -> bool {
-        self.start == other.start && self.end == other.end && self.value == other.value
-    }
-}
-
-impl<T: Eq> Eq for Spanned<T> {}
-
-impl<T: std::hash::Hash> std::hash::Hash for Spanned<T> {
-    fn hash<H: std::hash::Hasher>(
-        &self,
-        state: &mut H,
-    ) {
-        self.start.hash(state);
-        self.end.hash(state);
-        self.value.hash(state);
-    }
 }
 
 impl<T> Spanned<T> {
@@ -116,24 +118,27 @@ impl<T> Spanned<T> {
         end: usize,
         value: T,
     ) -> Self {
-        Self { start, end, value }
+        Self {
+            value,
+            span: span::Span::new(start, end),
+        }
     }
     pub fn map<U>(
         self,
         f: impl FnOnce(T) -> U,
     ) -> Spanned<U> {
         Spanned {
-            start: self.start,
-            end: self.end,
             value: f(self.value),
+            span: self.span,
         }
     }
+
     pub fn len(&self) -> usize {
-        self.end - self.start
+        self.span.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.span.is_empty()
     }
 }
 

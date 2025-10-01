@@ -45,7 +45,7 @@ pub fn detect_version_conflict(scope: &[&Version]) -> crate::Result<Option<usize
             .collect::<Vec<_>>();
         let spans = scope
             .iter()
-            .map(|v| (v.meta.start, v.meta.end))
+            .map(|v| (v.meta.span.start, v.meta.span.end))
             .collect::<Vec<_>>();
         let first_span = spans[0];
         return Err(

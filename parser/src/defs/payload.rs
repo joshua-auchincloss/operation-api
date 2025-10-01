@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use pest::iterators::Pairs;
 
-use crate::{defs::meta::MetaAttribute, parser::Rule};
+use crate::{
+    defs::{meta::MetaAttribute, span::Span},
+    parser::Rule,
+};
 
 use crate::defs::*;
 
@@ -19,13 +22,13 @@ pub type PayloadTypesSealed = PayloadTypes<usize>;
 pub type PayloadTypesUnsealed = PayloadTypes<Option<usize>>;
 
 impl<V> PayloadTypes<V> {
-    pub fn span(&self) -> (usize, usize) {
+    pub fn span(&self) -> &Span {
         match self {
-            Self::Namespace(s) => (s.start, s.end),
-            Self::Type(s) => (s.start, s.end),
-            Self::Struct(s) => (s.start, s.end),
-            Self::Import(s) => (s.start, s.end),
-            Self::Enum(s) => (s.start, s.end),
+            Self::Namespace(s) => &s.span,
+            Self::Type(s) => &s.span,
+            Self::Struct(s) => &s.span,
+            Self::Import(s) => &s.span,
+            Self::Enum(s) => &s.span,
         }
     }
 
@@ -82,20 +85,32 @@ impl PayloadTypesUnsealed {
     ) -> PayloadTypesSealed {
         match self {
             Self::Struct(s) => {
-                PayloadTypesSealed::Struct(Spanned::new(s.start, s.end, s.value.seal(file_version)))
+                PayloadTypesSealed::Struct(Spanned::new(
+                    s.span.start,
+                    s.span.end,
+                    s.value.seal(file_version),
+                ))
             },
             Self::Type(t) => {
-                PayloadTypesSealed::Type(Spanned::new(t.start, t.end, t.value.seal(file_version)))
+                PayloadTypesSealed::Type(Spanned::new(
+                    t.span.start,
+                    t.span.end,
+                    t.value.seal(file_version),
+                ))
             },
             Self::Namespace(n) => {
                 PayloadTypesSealed::Namespace(Spanned::new(
-                    n.start,
-                    n.end,
+                    n.span.start,
+                    n.span.end,
                     n.value.seal(file_version),
                 ))
             },
             Self::Enum(e) => {
-                PayloadTypesSealed::Enum(Spanned::new(e.start, e.end, e.value.seal(file_version)))
+                PayloadTypesSealed::Enum(Spanned::new(
+                    e.span.start,
+                    e.span.end,
+                    e.value.seal(file_version),
+                ))
             },
             Self::Import(i) => PayloadTypesSealed::Import(i),
         }

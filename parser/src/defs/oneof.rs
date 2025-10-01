@@ -22,6 +22,7 @@ impl<V: Default + Clone + std::fmt::Debug + PartialEq> FromInner for OneOfType<V
                 Rule::type_operand | Rule::typ => return Self::from_inner(pair.into_inner()),
                 Rule::singular_type => types.push(Type::from_inner(pair.into_inner())?),
                 Rule::oneof => {
+                    panic!("{pair:#?}");
                     kind = OneOfKind::Or;
                     for it in pair.into_inner() {
                         types.push(Type::from_inner(Pairs::single(it))?)
@@ -82,4 +83,12 @@ impl OneOfUnsealed {
             version: self.version.unwrap_or(file_version),
         }
     }
+}
+
+pub struct OneOfDef<V> {
+    pub comment: String,
+    pub ident: Ident,
+    pub meta: Vec<Meta>,
+    pub version: V,
+    pub variants: Vec<EnumValue>,
 }

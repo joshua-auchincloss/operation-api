@@ -1,4 +1,4 @@
-use crate::defs::*;
+use crate::{Parse, defs::*, tokens};
 
 use pest::iterators::Pairs;
 
@@ -12,6 +12,18 @@ pub struct EnumValue {
     pub ty: EnumTy,
     pub meta: Vec<MetaAttribute>,
 }
+
+// impl tokens::Parse for EnumValue {
+//     fn parse(stream: &mut tokens::TokenStream) -> Result<Self, tokens::LexingError> {
+//         Ok(Self {
+//             comment: stream.parse(),
+//             ident: (),
+//             value: (),
+//             ty: (),
+//             meta: (),
+//         })
+//     }
+// }
 
 impl Commentable for EnumValue {
     fn comment(

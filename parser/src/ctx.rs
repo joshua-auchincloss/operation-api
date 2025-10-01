@@ -35,8 +35,8 @@ pub trait GetCtx {
             None => {
                 Err(crate::Error::resolution_spanned(
                     ident.value.clone(),
-                    ident.start,
-                    ident.end,
+                    ident.span.start,
+                    ident.span.end,
                 ))
             },
         }
@@ -168,7 +168,7 @@ impl TryFrom<Payload> for NamespaceCtx {
         for v in value.defs {
             match v {
                 PayloadTypesSealed::Type(ty) => {
-                    let (start, end, ident) = (ty.start, ty.end, ty.value.ident.clone());
+                    let (start, end, ident) = (ty.span.start, ty.span.end, ty.value.ident.clone());
                     let clone_for_insert = ty.clone();
                     insert_unique_ident_or_err_spanned(
                         this_ident_path.clone(),
@@ -180,7 +180,8 @@ impl TryFrom<Payload> for NamespaceCtx {
                     )?
                 },
                 PayloadTypesSealed::Struct(msg) => {
-                    let (start, end, ident) = (msg.start, msg.end, msg.value.ident.clone());
+                    let (start, end, ident) =
+                        (msg.span.start, msg.span.end, msg.value.ident.clone());
                     let clone_for_insert = msg.clone();
                     insert_unique_ident_or_err_spanned(
                         this_ident_path.clone(),
@@ -192,15 +193,14 @@ impl TryFrom<Payload> for NamespaceCtx {
                     )?
                 },
                 PayloadTypesSealed::Enum(enm) => {
-                    let (start, end, ident) = (enm.start, enm.end, enm.value.ident.clone());
                     let clone_for_insert = enm.clone();
                     insert_unique_ident_or_err_spanned(
                         this_ident_path.clone(),
                         &mut enums,
-                        ident,
+                        enm.value.ident.clone(),
                         clone_for_insert,
-                        start,
-                        end,
+                        enm.span.start,
+                        enm.span.end,
                     )?;
                 },
                 PayloadTypesSealed::Import(import) => imports.push(import),

@@ -8,6 +8,7 @@
 pub mod defs;
 pub mod diagnostics;
 pub mod parser;
+pub mod tokens;
 
 pub mod ctx;
 pub(crate) mod utils;
@@ -86,6 +87,9 @@ pub enum Error {
         values: Vec<usize>,
         spans: Vec<(usize, usize)>,
     },
+
+    #[error("lex error: invalid character '{ch}'")]
+    LexError { ch: char, start: usize, end: usize },
 }
 
 impl Error {

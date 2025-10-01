@@ -3,14 +3,14 @@ use crate::{
     *,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct MetaAttribute {
     pub ident: Ident,
     pub style: Style,
     pub raw_value: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub enum Style {
     Inner,
     Outer,
@@ -69,7 +69,7 @@ impl FromPairSpan for MetaAttribute {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct TypedMeta<T> {
     pub meta: Spanned<MetaAttribute>,
     pub value: T,
@@ -96,7 +96,7 @@ macro_rules! meta {
                 pub type [<$kw:camel>] = TypedMeta<$t>;
             )*
 
-            #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+            #[derive(Debug, Clone, PartialEq, Hash)]
             pub enum Meta {
                 $(
                     [<$kw:camel>]([<$kw:camel>])
@@ -114,7 +114,7 @@ macro_rules! meta {
                     )* else {
                         panic!("{}", meta.ident);
                         return Err(crate::Error::def::<MetaAttribute>(crate::Rule::meta_value)
-                            .with_span(meta.start, meta.end));
+                            .with_span(meta.span.start, meta.span.end));
                     }
                     unreachable!("meta parse should have returned or errored above")
                 }
