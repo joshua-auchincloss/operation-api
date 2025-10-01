@@ -1,7 +1,7 @@
 pub use operation_api_core::{
     CompoundType, Defined, Definitions, Enum, ErrorTy as Error, Field, FieldsList, Meta, Named,
     OneOf, OneOfVariant, Operation, StrOrInt, Struct, Type, Typed, VariantKind, Version, map,
-    namespace, namespace::OfNamespace,
+    namespace, namespace::OfNamespace, ty::Result,
 };
 pub use operation_api_derives::{Enum, Error, OneOf, Struct, module, operation};
 pub use serde_repr::{Deserialize_repr as IntDeserialize, Serialize_repr as IntSerialize};

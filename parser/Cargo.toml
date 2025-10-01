@@ -1,0 +1,28 @@
+[package]
+name = "operation-api-parser"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+
+[features]
+bench = []
+
+[dependencies]
+paste.workspace = true
+bon.workspace = true
+pest = { workspace = true, features = ["miette-error"] }
+pest_derive = { workspace = true, features = ["grammar-extras"] }
+thiserror.workspace = true
+tracing.workspace = true
+miette = { version = "7", features = ["fancy"] }
+
+[dev-dependencies]
+criterion = { version = "*", features = ["html_reports"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+[[bench]]
+name = "parsing"
+harness = false

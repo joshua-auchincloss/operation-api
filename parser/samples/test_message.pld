@@ -1,0 +1,29 @@
+/*
+	namespace comments (test)
+*/
+#![version(1)]
+namespace test;
+
+import "some_import.pld";
+
+
+// single line comment on type
+type abc = oneof str | null;
+
+/*
+	some multiline comment.
+*/
+struct test_message {
+	// Field comment
+	a:  i32,
+	/*
+		Multiline field comment
+	*/
+	b:  i64,
+	c:  str,
+	d?: bool,
+	e?: str,
+	f:  oneof str | null,
+	g:  abc,
+	h:  test::abc,
+};

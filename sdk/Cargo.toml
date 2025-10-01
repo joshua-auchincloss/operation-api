@@ -31,3 +31,4 @@ serde_yaml.workspace = true
 paste.workspace = true
 chrono = { workspace = true, features = ["serde"] }
 time = { workspace = true, features = ["serde"] }
+thiserror = "*"

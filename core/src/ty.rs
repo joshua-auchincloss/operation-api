@@ -803,6 +803,8 @@ impl Definitions {
     }
 }
 
+pub trait DefinedError: Into<ErrorTy> {}
+
 #[cfg(test)]
 mod test {
     use std::marker::PhantomData;

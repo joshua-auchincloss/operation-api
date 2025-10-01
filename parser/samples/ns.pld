@@ -1,0 +1,6 @@
+// namespace comments (foo)
+namespace foo;
+
+import "test_message.pld";
+
+

@@ -9,6 +9,7 @@ pub mod ty;
 pub(crate) mod utils;
 use std::marker::PhantomData;
 
+pub mod protocol;
 pub use paste::paste;
 pub use ty::*;
 
@@ -25,6 +26,8 @@ macro_rules! ty {
 pub trait Defined: Sized + Send + Sync {
     fn definition() -> &'static Definitions;
 }
+
+// pub trait Error: Defined {}
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
