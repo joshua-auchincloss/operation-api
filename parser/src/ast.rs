@@ -8,3 +8,4 @@ pub mod namespace;
 pub mod one_of;
 pub mod strct;
 pub mod ty;
+pub mod array;

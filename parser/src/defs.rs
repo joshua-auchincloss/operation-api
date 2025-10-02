@@ -24,7 +24,7 @@ pub use value::*;
 
 use pest::iterators::{Pair, Pairs};
 
-use crate::parser::Rule;
+use crate::{parser::Rule, tokens::ToTokens};
 
 fn quoted_inner<'s>(value: Pair<'s, Rule>) -> &'s str {
     value.into_inner().next().unwrap().as_str()
@@ -145,6 +145,12 @@ impl<T> std::ops::Deref for Spanned<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.value
+    }
+}
+
+impl<T: ToTokens> ToTokens for Spanned<T> {
+    fn tokens(&self) -> crate::tokens::MutTokenStream {
+        self.value.tokens()
     }
 }
 

@@ -3,6 +3,7 @@ use crate::{
     tokens::{ImplDiagnostic, error::LexingError, stream::TokenStream, tokens::SpannedToken},
 };
 
+#[allow(unused_variables)]
 pub trait Peek: Sized {
     fn peek(stream: &TokenStream) -> bool {
         if let Some(token) = stream.peek_unchecked() {
@@ -11,7 +12,9 @@ pub trait Peek: Sized {
             false
         }
     }
-    fn is(token: &SpannedToken) -> bool;
+    fn is(token: &SpannedToken) -> bool {
+        false
+    }
 }
 
 fn extract_span<'a>(checkpoint: Option<&'a SpannedToken>) -> Option<&'a Span> {
@@ -42,7 +45,7 @@ pub trait Parse: Sized {
     }
 }
 
-impl<T: Peek + Parse> Parse for Spanned<T> {
+impl<T: Parse> Parse for Spanned<T> {
     fn parse(stream: &mut TokenStream) -> Result<Self, LexingError> {
         stream.parse()
     }
@@ -55,6 +58,18 @@ impl<T: Peek + Parse> Parse for Option<T> {
         } else {
             Ok(None)
         }
+    }
+}
+
+impl<T: Parse> Parse for Box<T> {
+    fn parse(stream: &mut TokenStream) -> Result<Self, LexingError> {
+        Ok(Box::new(T::parse(stream)?))
+    }
+}
+
+impl<T: Peek> Peek for Box<T> {
+    fn is(token: &SpannedToken) -> bool {
+        T::is(token)
     }
 }
 

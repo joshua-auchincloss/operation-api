@@ -1,4 +1,4 @@
-use crate::tokens::{LexingError, TokenStream, tokenize};
+use crate::tokens::{Brace, LexingError, TokenStream, tokenize};
 
 use crate::{
     SpannedToken, Token,
@@ -58,7 +58,7 @@ impl<Value: Parse + Peek> ImplDiagnostic for EnumVariant<Value> {
 pub struct TypedEnum<Value: Parse + Peek> {
     kw: SpannedToken![enum],
     name: SpannedToken![ident],
-    brace: (),
+    brace: Brace,
     variants: Repeated<EnumVariant<Value>, Token![,]>,
 }
 

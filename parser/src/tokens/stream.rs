@@ -1,5 +1,5 @@
 use logos::Logos;
-use std::rc::Rc;
+use std::{iter::Map, rc::Rc};
 
 use crate::{
     defs::{Spanned, span::Span},
@@ -129,7 +129,7 @@ impl TokenStream {
         Close: Parse + Peek + ImplDiagnostic,
     >(
         self: &mut Self
-    ) -> AstResult<TokenStream> {
+    ) -> AstResult<(TokenStream, Spanned<()>)> {
         let (mut depth, first_span) = if let Some(first) = self.next() {
             if !Open::is(&first) {
                 return Err(LexingError::expected::<Open>(first.value).with_span(first.span));
@@ -162,11 +162,14 @@ impl TokenStream {
         if let Some(end) = end_pos {
             // fork w/o opening and closing tokens
             let inner_tokens = Rc::new(self.tokens[start_pos + 1..end - 1].to_vec());
-            Ok(TokenStream {
-                source: self.source.clone(),
-                tokens: inner_tokens,
-                cursor: 0,
-            })
+            Ok((
+                TokenStream {
+                    source: self.source.clone(),
+                    tokens: inner_tokens,
+                    cursor: 0,
+                },
+                Spanned::new(start_pos, end, ()),
+            ))
         } else {
             let mut err = LexingError::empty::<Close>();
             if let Some(last) = self.tokens.get(self.cursor - 1) {
@@ -185,15 +188,48 @@ pub fn tokenize(src: &str) -> Result<TokenStream, LexingError> {
 
 macro_rules! paired {
     ($tok: ident) => {
+        #[derive(serde::Serialize, serde::Deserialize, Debug)]
+        pub struct $tok(Spanned<()>);
+
+        impl $tok {
+            pub fn new(span: Spanned<()>) -> Self {
+                Self(span)
+            }
+
+            pub fn span(&self) -> &Span {
+                &self.0.span
+            }
+        }
+
         paste::paste! {
             macro_rules! [<$tok:snake>] {
                 (
                     $tokens: ident in $input: ident
                 ) => {
-                    $tokens = $input.extract_inner_tokens::<
+                    match $input.extract_inner_tokens::<
                             $crate::tokens::tokens::[<L $tok:camel Token>],
                             $crate::tokens::tokens::[<R $tok:camel Token>],
-                        >()?
+                        >() {
+                        Ok((token, span)) => {
+                            $tokens = token;
+                            $crate::tokens::$tok::new(span)
+                        },
+                        Err(e) => return Err(e)
+                    }
+                };
+                (
+                    $tokens: ident in $input: ident; $err: expr
+                ) => {
+                    match $input.extract_inner_tokens::<
+                            $crate::tokens::tokens::[<L $tok:camel Token>],
+                            $crate::tokens::tokens::[<R $tok:camel Token>],
+                        >() {
+                        Ok((token, span)) => {
+                            $tokens = token;
+                            $crate::tokens::$tok::new(span)
+                        },
+                        Err(..) => return $err
+                    }
                 };
             }
             pub(crate) use [<$tok:snake>];
@@ -209,6 +245,93 @@ paired! {
 }
 paired! {
     Paren
+}
+
+fn spanned_value(span: Spanned<Token>) -> Token {
+    span.value
+}
+
+impl IntoIterator for TokenStream {
+    type Item = Token;
+    type IntoIter = <Vec<Token> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.tokens[..]
+            .to_vec()
+            .into_iter()
+            .map(spanned_value)
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct MutTokenStream {
+    pub(crate) tokens: Vec<Token>,
+}
+
+impl MutTokenStream {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_capacity(sz: usize) -> Self {
+        Self {
+            tokens: Vec::with_capacity(sz),
+        }
+    }
+
+    pub fn push(
+        &mut self,
+        token: Token,
+    ) {
+        self.tokens.push(token)
+    }
+
+    pub fn extend<I: IntoIterator<Item = Token>>(
+        &mut self,
+        i: I,
+    ) {
+        self.tokens
+            .append(&mut i.into_iter().collect());
+    }
+}
+
+impl IntoIterator for MutTokenStream {
+    type Item = Token;
+    type IntoIter = <Vec<Token> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.tokens.into_iter()
+    }
+}
+
+impl std::fmt::Display for MutTokenStream {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        if self.tokens.is_empty() {
+            return Ok(());
+        }
+
+        let last = self.tokens.len() - 1;
+        for (pos, tok) in self.tokens.iter().enumerate() {
+            write!(f, "{tok}")?;
+
+            let next = self.tokens.get(pos + 1);
+            if pos != last
+                && !matches!(tok, Token::LBrace | Token::LBracket | Token::LParen)
+                && !matches!(
+                    next,
+                    Some(Token::RBrace) | Some(Token::RBracket) | Some(Token::RParen)
+                )
+            {
+                write!(f, " ")?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

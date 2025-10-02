@@ -1,29 +1,33 @@
 use crate::{
     SpannedToken,
-    ast::{comment::CommentStream, meta::IntMeta},
+    ast::{
+        comment::CommentStream,
+        meta::{IntMeta, ItemMeta},
+    },
     defs::Spanned,
     tokens::Parse,
 };
 
-pub struct Definition<T: Parse> {
+pub struct Item<T: Parse> {
     comments: CommentStream,
-    version: Option<IntMeta>,
+    meta: Spanned<ItemMeta>,
     def: Spanned<T>,
     end: SpannedToken![;],
 }
 
-impl<T: Parse> Parse for Definition<T> {
+impl<T: Parse> Parse for Item<T> {
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
         Ok(Self {
             comments: CommentStream::parse(stream)?,
-            version: Option::parse(stream)?,
+            meta: stream.parse()?,
             def: stream.parse()?,
             end: stream.parse()?,
         })
     }
 }
 
-pub type NamespaceDef = Definition<super::namespace::Namespace>;
-pub type ImportDef = Definition<super::import::Import>;
-pub type OneOfDef = Definition<super::one_of::OneOf>;
-pub type EnumDef = Definition<super::enm::Enum>;
+pub type NamespaceDef = Item<super::namespace::Namespace>;
+pub type ImportDef = Item<super::import::Import>;
+pub type OneOfDef = Item<super::one_of::OneOf>;
+pub type EnumDef = Item<super::enm::Enum>;
+pub type StructDef = Item<super::strct::Struct>;

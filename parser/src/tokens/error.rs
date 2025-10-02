@@ -40,6 +40,12 @@ pub enum LexingError {
         found: Token,
     },
 
+    #[error("unknown meta attribute, '{found}'. expected one of {}", expect.join(", "))]
+    UnknownMeta {
+        expect: Vec<&'static str>,
+        found: String,
+    },
+
     #[error("{source}")]
     Spanned { source: Box<Self>, span: Span },
 }
@@ -85,4 +91,28 @@ impl LexingError {
     pub fn then_with_span(span: Span) -> impl FnOnce(Self) -> Self {
         move |this| this.with_span(span)
     }
+
+    pub fn unknown_meta<I: IntoIterator<Item = &'static str>>(
+        expect: I,
+        found: String,
+        span: &Span,
+    ) -> Self {
+        Self::UnknownMeta {
+            expect: expect.into_iter().collect(),
+            found,
+        }
+        .with_span(span.clone())
+    }
+}
+
+#[macro_export]
+macro_rules! bail_unchecked {
+    (
+        $e:expr; $ret: expr
+    ) => {
+        match $e {
+            Ok(v) => v,
+            Err(..) => return $ret,
+        }
+    };
 }

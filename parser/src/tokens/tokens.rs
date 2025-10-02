@@ -1,11 +1,22 @@
 use crate::{
     defs::{Spanned, span::Span},
-    tokens::{ImplDiagnostic, error::LexingError},
+    tokens::{ImplDiagnostic, MutTokenStream, TokenStream, error::LexingError},
 };
 use logos::Logos;
 use std::fmt;
 
 pub type SpannedToken = Spanned<Token>;
+
+pub trait ToTokens {
+    fn tokens(&self) -> MutTokenStream;
+
+    fn write(
+        &self,
+        tokens: &mut MutTokenStream,
+    ) {
+        tokens.extend(self.tokens().into_iter());
+    }
+}
 
 macro_rules! tokens {
     (
@@ -41,9 +52,21 @@ macro_rules! tokens {
                     ()
                 );
 
+                impl super::ToTokens for [<$tok Token>] {
+                    fn tokens(&self) -> super::MutTokenStream {
+                        let mut strm = MutTokenStream::new();
+                        strm.push(self.token());
+                        strm
+                    }
+                }
+
                 impl [<$tok Token>]{
                     pub fn new($([<$inner:snake>]: $inner ,)*)-> Self {
                         Self($([<$inner:snake>],)*())
+                    }
+
+                    pub fn token(&self) -> Token {
+                        Token::$tok$((self.0.clone() as $inner))?
                     }
 
                     $(

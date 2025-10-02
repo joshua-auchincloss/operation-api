@@ -3,14 +3,28 @@ use crate::{
     tokens::{self, ImplDiagnostic},
 };
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub enum CommentAst {
     SingleLine(tokens::CommentSingleLineToken),
     MultiLine(tokens::CommentMultiLineToken),
 }
 
+impl tokens::ToTokens for CommentAst {
+    fn tokens(&self) -> tokens::MutTokenStream {
+        let mut tt = tokens::MutTokenStream::with_capacity(1);
+
+        tt.push(match self {
+            Self::SingleLine(cmt) => cmt.token(),
+            Self::MultiLine(cmt) => cmt.token(),
+        });
+
+        tt
+    }
+}
+
 impl ImplDiagnostic for CommentAst {
     fn fmt() -> &'static str {
-        "single or multiline comment"
+        "// <comment> | /* comment */"
     }
 }
 
@@ -30,6 +44,7 @@ impl tokens::Parse for CommentAst {
     }
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct CommentStream {
     pub comments: Vec<Spanned<CommentAst>>,
 }
@@ -50,6 +65,16 @@ impl CommentStream {
                 CommentAst::SingleLine(single) => single.borrow_string(),
             }
         })
+    }
+}
+
+impl tokens::ToTokens for CommentStream {
+    fn tokens(&self) -> tokens::MutTokenStream {
+        let mut tt = tokens::MutTokenStream::new();
+        for c in &self.comments {
+            c.value.write(&mut tt);
+        }
+        tt
     }
 }
 
