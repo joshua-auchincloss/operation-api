@@ -1,5 +1,4 @@
 pub mod builtin;
-pub mod comment;
 pub mod enums;
 pub mod ident;
 pub mod imports;

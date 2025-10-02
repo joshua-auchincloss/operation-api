@@ -1,1 +1,10 @@
+pub mod comment;
+pub mod def;
+pub mod enm;
+pub mod ident;
+pub mod import;
+pub mod meta;
+pub mod namespace;
+pub mod one_of;
+pub mod strct;
 pub mod ty;

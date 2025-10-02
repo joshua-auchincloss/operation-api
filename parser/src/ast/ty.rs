@@ -1,4 +1,9 @@
-use crate::tokens::*;
+use crate::{
+    SpannedToken,
+    ast::{def::EnumDef, one_of::OneOfInner},
+    defs::Spanned,
+    tokens::*,
+};
 
 macro_rules! builtin {
     ($($t: ident), + $(,)?) => {
@@ -60,6 +65,34 @@ builtin! {
     Bool,
     Str,
 }
+
+#[derive()]
+pub enum Type {
+    Builtin(Spanned<Builtin>),
+    Ident(SpannedToken![ident]),
+    OneOf(Spanned<OneOfInner>),
+    Enum(EnumDef),
+    Array(Box<Type>),
+    SizedArray { ty: Box<Type>, size: usize },
+}
+
+// impl<V> Type<V> {
+//     pub fn builtin(value: Builtin) -> Self {
+//         Self::Builtin(value)
+//     }
+
+//     pub fn ident<I: Into<Ident>>(value: I) -> Self {
+//         Self::Ident(value.into())
+//     }
+
+//     pub fn oneof(value: OneOfType<V>) -> Self {
+//         Self::OneOf(Box::new(value))
+//     }
+
+//     pub fn array(value: Type<V>) -> Self {
+//         Self::Array(Box::new(value))
+//     }
+// }
 
 #[cfg(test)]
 mod test {

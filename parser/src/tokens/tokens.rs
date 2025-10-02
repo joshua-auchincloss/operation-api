@@ -29,6 +29,9 @@ macro_rules! tokens {
 
         paste::paste!{
             $(
+                #[doc = concat!(
+                    "Represents `", $($met)? $($fmt)?, "` token(s)"
+                )]
                 #[derive(Clone, PartialEq, Debug, serde::Serialize, serde::Deserialize)]
                 pub struct [<$tok Token>](
                     $(
@@ -141,6 +144,12 @@ declare_tokens! {
     KwType,
     #[token("oneof")]
     KwOneof,
+    #[token("error")]
+    KwError,
+    #[token("operation")]
+    KwOperation,
+
+
     #[token("bool")]
     KwBool,
     #[token("null")]
@@ -228,6 +237,8 @@ impl fmt::Display for Token {
             KwEnum => write!(f, "enum"),
             KwType => write!(f, "type"),
             KwOneof => write!(f, "oneof"),
+            KwError => write!(f, "error"),
+            KwOperation => write!(f, "operation"),
             KwBool => write!(f, "bool"),
             KwNull => write!(f, "null"),
             KwStr => write!(f, "str"),
@@ -305,4 +316,52 @@ fn unescape_comment(src: &str) -> String {
         .trim_start()
         .trim_end()
         .to_string()
+}
+
+#[macro_export]
+macro_rules! Token {
+    [::] => { $crate::tokens::tokens::DoubleColonToken };
+    [;] => { $crate::tokens::tokens::SemiToken };
+    [:] => { $crate::tokens::tokens::ColonToken };
+    [,] => { $crate::tokens::tokens::CommaToken };
+    [?] => { $crate::tokens::tokens::QMarkToken };
+    [=] => { $crate::tokens::tokens::EqToken };
+    [|] => { $crate::tokens::tokens::PipeToken };
+    [#] => { $crate::tokens::tokens::HashToken };
+    [!] => { $crate::tokens::tokens::BangToken };
+    [namespace] => { $crate::tokens::tokens::KwNamespaceToken };
+    [import] => { $crate::tokens::tokens::KwImportToken };
+    [struct] => { $crate::tokens::tokens::KwStructToken };
+    [enum] => { $crate::tokens::tokens::KwEnumToken };
+    [type] => { $crate::tokens::tokens::KwTypeToken };
+    [oneof] => { $crate::tokens::tokens::KwOneofToken };
+    [error] => { $crate::tokens::tokens::KwErrorToken };
+    [operation] => { $crate::tokens::tokens::KwOperationToken };
+    [bool] => { $crate::tokens::tokens::KwBoolToken };
+    [null] => { $crate::tokens::tokens::KwNullToken };
+    [str] => { $crate::tokens::tokens::KwStrToken };
+    [i8] => { $crate::tokens::tokens::KwI8Token };
+    [i16] => { $crate::tokens::tokens::KwI16Token };
+    [i32] => { $crate::tokens::tokens::KwI32Token };
+    [i64] => { $crate::tokens::tokens::KwI64Token };
+    [u8] => { $crate::tokens::tokens::KwU8Token };
+    [u16] => { $crate::tokens::tokens::KwU16Token };
+    [u32] => { $crate::tokens::tokens::KwU32Token };
+    [u64] => { $crate::tokens::tokens::KwU64Token };
+    [f16] => { $crate::tokens::tokens::KwF16Token };
+    [f32] => { $crate::tokens::tokens::KwF32Token };
+    [f64] => { $crate::tokens::tokens::KwF64Token };
+    [newline] => { $crate::tokens::tokens::NewlineToken };
+    [ident] => { $crate::tokens::tokens::IdentToken };
+    [number] => { $crate::tokens::tokens::NumberToken };
+    [string] => { $crate::tokens::tokens::StringToken };
+    [comment_single_line] => { $crate::tokens::tokens::CommentSingleLineToken };
+    [comment_multi_line] => { $crate::tokens::tokens::CommentMultiLineToken };
+}
+
+#[macro_export]
+macro_rules! SpannedToken {
+    ($met: tt) => {
+        $crate::defs::Spanned::<$crate::Token![$met]>
+    };
 }

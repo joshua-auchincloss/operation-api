@@ -22,7 +22,7 @@ use std::{
     str::ParseBoolError,
 };
 
-use crate::{defs::Ident, parser::Rule};
+use crate::{defs::Ident, parser::Rule, tokens::LexingError};
 use thiserror::Error;
 
 pub use ctx::{Parse, parse_files};
@@ -90,6 +90,9 @@ pub enum Error {
 
     #[error("lex error: invalid character '{ch}'")]
     LexError { ch: char, start: usize, end: usize },
+
+    #[error("{0}")]
+    AstError(#[from] tokens::LexingError),
 }
 
 impl Error {
@@ -179,6 +182,12 @@ impl Error {
 
         let effective = match (override_span, self) {
             (Some(s), _) => Some(s),
+            (None, Error::AstError(inner)) => {
+                match inner {
+                    LexingError::Spanned { span, .. } => Some((span.start, span.end)),
+                    _ => None,
+                }
+            },
             (None, Error::WithSpan { start, end, .. }) => Some((*start, *end)),
             (None, Error::VersionConflict { spans, .. }) if !spans.is_empty() => Some(spans[0]),
             _ => None,

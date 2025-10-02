@@ -4,6 +4,7 @@ use std::rc::Rc;
 use crate::{
     defs::{Spanned, span::Span},
     tokens::{
+        AstResult, ImplDiagnostic,
         ast::{Parse, Peek},
         error::LexingError,
         tokens::{SpannedToken, Token},
@@ -122,8 +123,195 @@ impl TokenStream {
     pub fn peek<T: Peek>(&self) -> bool {
         T::peek(self)
     }
+
+    pub fn extract_inner_tokens<
+        Open: Parse + Peek + ImplDiagnostic,
+        Close: Parse + Peek + ImplDiagnostic,
+    >(
+        self: &mut Self
+    ) -> AstResult<TokenStream> {
+        let (mut depth, first_span) = if let Some(first) = self.next() {
+            if !Open::is(&first) {
+                return Err(LexingError::expected::<Open>(first.value).with_span(first.span));
+            }
+            (1_usize, first.span)
+        } else {
+            return Err(LexingError::empty::<Open>());
+        };
+
+        let start_pos = self.cursor - 1;
+
+        let mut end_pos = None;
+
+        while let Some(tok) = self.next() {
+            if Open::is(&tok) {
+                depth += 1;
+            } else if Close::is(&tok) {
+                if depth > 0 {
+                    depth -= 1;
+                    if depth == 0 {
+                        // matched close, after we have decremented the depth to 0
+                        end_pos = Some(self.cursor);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // todo: this should really be a reference to the inner tokens vs a clone op as below
+        if let Some(end) = end_pos {
+            // fork w/o opening and closing tokens
+            let inner_tokens = Rc::new(self.tokens[start_pos + 1..end - 1].to_vec());
+            Ok(TokenStream {
+                source: self.source.clone(),
+                tokens: inner_tokens,
+                cursor: 0,
+            })
+        } else {
+            let mut err = LexingError::empty::<Close>();
+            if let Some(last) = self.tokens.get(self.cursor - 1) {
+                err = err.with_span(last.span.clone());
+            } else {
+                err = err.with_span(first_span)
+            }
+            Err(err)
+        }
+    }
 }
 
 pub fn tokenize(src: &str) -> Result<TokenStream, LexingError> {
     TokenStream::lex(src)
+}
+
+macro_rules! paired {
+    ($tok: ident) => {
+        paste::paste! {
+            macro_rules! [<$tok:snake>] {
+                (
+                    $tokens: ident in $input: ident
+                ) => {
+                    $tokens = $input.extract_inner_tokens::<
+                            $crate::tokens::tokens::[<L $tok:camel Token>],
+                            $crate::tokens::tokens::[<R $tok:camel Token>],
+                        >()?
+                };
+            }
+            pub(crate) use [<$tok:snake>];
+        }
+    };
+}
+
+paired! {
+    Brace
+}
+paired! {
+    Bracket
+}
+paired! {
+    Paren
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::Path;
+
+    use crate::{
+        defs::Spanned,
+        tokens::{self, AstResult, Repeated, TokenStream, brace, bracket, paren, tokenize},
+    };
+
+    #[test_case::test_case(
+        "{a}", |tt| {
+            let inner;
+
+            brace!(inner in tt);
+
+            Ok(inner)
+        }, 3; "parses braced with exact inner"
+    )]
+    #[test_case::test_case(
+        "
+            {
+                a
+            }
+        ", |tt| {
+            let inner;
+
+            brace!(inner in tt);
+
+            Ok(inner)
+        }, 6; "parses braced"
+    )]
+    #[test_case::test_case(
+        "
+            [
+                a
+            ]
+        ", |tt| {
+            let inner;
+
+            bracket!(inner in tt);
+
+            Ok(inner)
+        }, 6; "parses bracketed"
+    )]
+    #[test_case::test_case(
+        "
+            (
+                a
+            )
+        ", |tt| {
+            let inner;
+
+            paren!(inner in tt);
+
+            Ok(inner)
+        }, 6; "parses parenthesized"
+    )]
+    fn test_paired(
+        src: &str,
+        get: impl Fn(&mut TokenStream) -> AstResult<TokenStream>,
+        cursor: usize,
+    ) -> crate::tokens::AstResult<()> {
+        let mut tt = tokenize(src).unwrap();
+        let mut inner = get(&mut tt)?;
+
+        let a: Spanned<tokens::IdentToken> = inner.parse()?;
+        assert_eq!(a.borrow_string(), "a");
+        assert_eq!(tt.cursor, cursor);
+
+        Ok(())
+    }
+
+    #[test_case::test_case(
+        "
+            }
+    ",
+        &["expected {, found }", "2:13"]; "close brace no open"
+    )]
+    #[test_case::test_case(
+        "
+        { a
+    ",
+        &["expected }, found end of token stream", "2:12"]; "open brace without close"
+    )]
+    fn test_paired_diagnostic(
+        src: &str,
+        expect: &[&str],
+    ) {
+        let mut tt = tokenize(src).expect("parse");
+        let inner = || -> AstResult<TokenStream> {
+            let inner;
+            brace!(inner in tt);
+            Ok(inner)
+        }()
+        .unwrap_err();
+        let as_crate = crate::Error::from(inner);
+        let p = Path::new("test.pld");
+        let diag = format!("{:?}", as_crate.to_report_with(&p, src, None));
+        eprintln!("{diag}");
+        for e in expect {
+            assert!(diag.contains(e), "'{}' is in ouputted diagnostics", e)
+        }
+    }
 }

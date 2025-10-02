@@ -31,7 +31,7 @@ pub enum LexingError {
     #[error("expected {}, found end of token stream", expect.join(" |"))]
     EmptyOneOfTokens { expect: Vec<&'static str> },
 
-    #[error("expected {expect}, found '{found}'")]
+    #[error("expected {expect}, found {found}")]
     ExpectationFailure { expect: &'static str, found: Token },
 
     #[error("expected {}, found '{found}'", expect.join(" |"))]

@@ -49,9 +49,9 @@ mod tests {
         namespace abc;
         ", |kinds| {
             assert!(matches!(kinds[0], Token::CommentSingleLine(cmt) if cmt == "some inner comment value"));
-            assert!(matches!(kinds[1], Token::CommentSingleLine(cmt) if cmt == "next line comment"));
-            assert!(matches!(kinds[2], Token::KwNamespace));
-            assert!(matches!(kinds[3], Token::Ident(s) if s == "abc"));
+            assert!(matches!(kinds[2], Token::CommentSingleLine(cmt) if cmt == "next line comment"));
+            assert!(matches!(kinds[4], Token::KwNamespace));
+            assert!(matches!(kinds[5], Token::Ident(s) if s == "abc"));
         }; "parses single line comment"
     )]
     #[test_case::test_case(
@@ -63,8 +63,8 @@ mod tests {
         namespace abc;
         ", |kinds| {
             assert!(matches!(kinds[0], Token::CommentMultiLine(cmt) if cmt == "some\nmultiline\ncomment"));
-            assert!(matches!(kinds[1], Token::CommentSingleLine(cmt) if cmt == "next line comment"));
-            assert!(matches!(kinds[2], Token::Ident(s) if s == "abc"));
+            assert!(matches!(kinds[2], Token::KwNamespace));
+            assert!(matches!(kinds[3], Token::Ident(s) if s == "abc"));
         }; "parses multi line comment"
     )]
     #[test_case::test_case(
@@ -199,7 +199,7 @@ mod tests {
         // line
         // comments
         ", 
-        serde_json::json!({"span":{"end":7,"start":0},"value":[{"span":{"end":1,"start":0},"value":["multiple"]},{"span":{"end":3,"start":1},"value":["single"]},{"span":{"end":5,"start":3},"value":["line"]},{"span":{"end":7,"start":5},"value":["comments"]}]}),
+        serde_json::json!({"span":{"end":65,"start":0},"value":[{"span":{"end":11,"start":0},"value":["multiple"]},{"span":{"end":29,"start":11},"value":["single"]},{"span":{"end":45,"start":29},"value":["line"]},{"span":{"end":65,"start":45},"value":["comments"]}]}),
         PhantomData::<tokens::CommentSingleLineToken>;
         "parses single line comments over new lines"
     )]
@@ -209,7 +209,7 @@ mod tests {
         */ /*
             next comment value
         */", 
-        serde_json::json!({"span":{"end":2,"start":0},"value":[{"span":{"end":1,"start":0},"value":["the inner comment value"]},{"span":{"end":2,"start":1},"value":["next comment value"]}]}),
+        serde_json::json!({"span":{"end":94,"start":0},"value":[{"span":{"end":49,"start":0},"value":["the inner comment value"]},{"span":{"end":94,"start":50},"value":["next comment value"]}]}),
         PhantomData::<tokens::CommentMultiLineToken>;
         "parses comments over new lines"
     )]

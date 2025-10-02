@@ -14,12 +14,30 @@ pub trait Peek: Sized {
     fn is(token: &SpannedToken) -> bool;
 }
 
+fn extract_span<'a>(checkpoint: Option<&'a SpannedToken>) -> Option<&'a Span> {
+    if let Some(check) = checkpoint {
+        Some(&check.span)
+    } else {
+        None
+    }
+}
+
 pub trait Parse: Sized {
     fn parse(stream: &mut TokenStream) -> Result<Self, LexingError>;
     fn parse_spanned(stream: &mut TokenStream) -> Result<Spanned<Self>, LexingError> {
-        let start = stream.cursor;
+        let start = extract_span(stream.tokens.get(stream.cursor))
+            .unwrap_or(&Span { start: 0, end: 0 })
+            .start;
+
         let p = Self::parse(stream)?;
-        let end = stream.cursor;
+
+        let end = stream
+            .tokens
+            .get(stream.cursor - 1)
+            .expect("parsing guarantees position")
+            .span
+            .end;
+
         Ok(Spanned::new(start, end, p))
     }
 }
