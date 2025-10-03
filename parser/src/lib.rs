@@ -5,53 +5,28 @@
     clippy::ptr_arg
 )]
 
+pub mod ast;
+pub mod ctx;
 pub mod defs;
 pub mod diagnostics;
-pub mod parser;
-
-pub mod ctx;
+pub mod tokens;
 pub(crate) mod utils;
 
 #[cfg(test)]
 pub(crate) mod tst;
 
-use std::{
-    convert::Infallible,
-    num::{ParseFloatError, ParseIntError},
-    str::ParseBoolError,
-};
+use std::convert::Infallible;
 
-use crate::{defs::Ident, parser::Rule};
+use crate::{defs::Ident, tokens::LexingError};
 use thiserror::Error;
 
-pub use ctx::{Parse, parse_files};
+pub use tokens::{ImplDiagnostic, Parse, Peek};
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("{0}")]
-    RuleViolation(#[from] pest::error::Error<Rule>),
-
     #[error("io error: {0}")]
     IoError(#[from] std::io::Error),
 
-    #[error("definition error for {rule:#?}: {src}")]
-    DefError {
-        src: String,
-        rule: crate::parser::Rule,
-    },
-
-    #[error("definition error for {rules:#?}: {src}")]
-    DefsError {
-        src: String,
-        rules: Vec<crate::parser::Rule>,
-    },
-
-    #[error("parse int error: {0}")]
-    ParseInt(#[from] ParseIntError),
-    #[error("parse bool error: {0}")]
-    ParseBool(#[from] ParseBoolError),
-    #[error("parse float error: {0}")]
-    ParseFloat(#[from] ParseFloatError),
     #[error("{0}")]
     Infallible(#[from] Infallible),
 
@@ -67,12 +42,6 @@ pub enum Error {
     #[error("resolution error. could not resolve {ident}")]
     ResolutionError { ident: Ident },
 
-    #[error("value error: {value} is not valid for types {tys:#?}")]
-    ValueError {
-        value: String,
-        tys: Vec<crate::defs::TypeSealed>,
-    },
-
     #[error("{inner}")]
     WithSpan {
         #[source]
@@ -86,25 +55,15 @@ pub enum Error {
         values: Vec<usize>,
         spans: Vec<(usize, usize)>,
     },
+
+    #[error("lex error: invalid character '{ch}'")]
+    LexError { ch: char, start: usize, end: usize },
+
+    #[error("{0}")]
+    AstError(#[from] tokens::LexingError),
 }
 
 impl Error {
-    pub fn def<T>(rule: crate::parser::Rule) -> Self {
-        let ty = std::any::type_name::<T>();
-        Self::DefError {
-            src: ty.into(),
-            rule,
-        }
-    }
-
-    pub fn defs<T, I: IntoIterator<Item = crate::parser::Rule>>(rules: I) -> Self {
-        let ty = std::any::type_name::<T>();
-        Self::DefsError {
-            src: ty.into(),
-            rules: rules.into_iter().collect(),
-        }
-    }
-
     pub fn conflict(
         namespace: Vec<Ident>,
         ident: Ident,
@@ -133,16 +92,6 @@ impl Error {
         end: usize,
     ) -> Self {
         Self::ResolutionError { ident: id }.with_span(start, end)
-    }
-
-    pub fn value_error<I: IntoIterator<Item = crate::defs::TypeSealed>>(
-        value: String,
-        tys: I,
-    ) -> Self {
-        Self::ValueError {
-            value,
-            tys: tys.into_iter().collect(),
-        }
     }
 
     pub fn with_span(
@@ -175,6 +124,12 @@ impl Error {
 
         let effective = match (override_span, self) {
             (Some(s), _) => Some(s),
+            (None, Error::AstError(inner)) => {
+                match inner {
+                    LexingError::Spanned { span, .. } => Some((span.start, span.end)),
+                    _ => None,
+                }
+            },
             (None, Error::WithSpan { start, end, .. }) => Some((*start, *end)),
             (None, Error::VersionConflict { spans, .. }) if !spans.is_empty() => Some(spans[0]),
             _ => None,

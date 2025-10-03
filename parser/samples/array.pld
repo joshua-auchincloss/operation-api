@@ -1,6 +1,1 @@
-namespace test;
-
-#[version(1)]
-struct test_arrays {
-    a: str[]
-};
+c

@@ -1,27 +1,53 @@
-use crate::defs::*;
+use crate::{defs::Spanned, tokens::tokens};
+use std::{fmt::Display, hash::Hash};
 
-use std::fmt::Display;
+#[derive(Debug, Clone)]
+pub struct Ident(tokens::IdentToken);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Ident(String);
+impl PartialEq for Ident {
+    fn eq(
+        &self,
+        other: &Self,
+    ) -> bool {
+        self.0.borrow_string() == other.0.borrow_string()
+    }
+}
+
+impl Eq for Ident {}
+
+impl Hash for Ident {
+    fn hash<H: std::hash::Hasher>(
+        &self,
+        state: &mut H,
+    ) {
+        self.0.borrow_string().hash(state)
+    }
+}
+
 impl Display for Ident {
     fn fmt(
         &self,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.0.borrow_string())
     }
 }
 
 impl<S: Into<String>> From<S> for Ident {
     fn from(value: S) -> Self {
-        Self(value.into())
+        Self(tokens::IdentToken::new(value.into()))
+    }
+}
+
+impl AsRef<String> for Ident {
+    fn as_ref(&self) -> &String {
+        self.0.borrow_string()
     }
 }
 
 impl AsRef<str> for Ident {
     fn as_ref(&self) -> &str {
-        &self.0
+        &self.0.borrow_string()
     }
 }
 
@@ -40,7 +66,10 @@ impl Ident {
     }
 
     fn split(&self) -> Vec<&str> {
-        self.0.split("::").collect::<Vec<_>>()
+        self.0
+            .borrow_string()
+            .split("::")
+            .collect::<Vec<_>>()
     }
 
     pub fn qualified_path(&self) -> Vec<Self> {
@@ -48,7 +77,7 @@ impl Ident {
         if split.len() > 1 {
             split
                 .iter()
-                .map(|s| Self((*s).into()))
+                .map(|s| Self(tokens::IdentToken::new((*s).into())))
                 .collect()
         } else {
             vec![self.clone()]
@@ -60,7 +89,7 @@ impl Ident {
         if split.len() > 1 {
             split[..split.len() - 1]
                 .iter()
-                .map(|s| Self((*s).into()))
+                .map(|s| Self(tokens::IdentToken::new((*s).into())))
                 .collect()
         } else {
             vec![]
@@ -70,7 +99,7 @@ impl Ident {
     pub fn object(&self) -> Self {
         let split = self.split();
         if split.len() > 1 {
-            Self((*split.last().unwrap()).into())
+            Self(tokens::IdentToken::new((*split.last().unwrap()).into()))
         } else {
             self.clone()
         }
@@ -83,18 +112,18 @@ impl Ident {
     ) -> Self {
         let mut new_ident = namespace.clone();
         new_ident.push(self.object());
-        Self(
+        Self(tokens::IdentToken::new(
             new_ident
                 .iter()
-                .map(|s| s.0.as_str())
+                .map(|s| s.0.borrow_string().as_str())
                 .collect::<Vec<_>>()
                 .join("::"),
-        )
+        ))
     }
 }
 
 impl Spanned<Ident> {
-    pub fn into_ident(self) -> Ident {
-        self.value
+    pub fn into_ident(&self) -> &Ident {
+        &self.value
     }
 }

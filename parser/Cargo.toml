@@ -14,16 +14,18 @@ harness = false
 bench = []
 
 [dependencies]
+serde = { workspace = true, features = ["derive"] }
 paste.workspace = true
 bon.workspace = true
-pest = { workspace = true, features = ["miette-error"] }
-pest_derive = { workspace = true, features = ["grammar-extras"] }
 thiserror.workspace = true
 tracing.workspace = true
 miette = { version = "7", features = ["fancy"] }
+
+logos = "*"
 
 [dev-dependencies]
 criterion = { version = "*", features = ["html_reports"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 operation-api-testing = { path = "../testing" }
 test-case.workspace = true
+serde_json.workspace = true
