@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::{
     defs::{Spanned, span::Span},
     tokens::{
-        AstResult, ImplDiagnostic, NewlineToken,
+        AstResult, ImplDiagnostic, NewlineToken, ToTokens,
         ast::{Parse, Peek},
         error::LexingError,
         tokens::{SpannedToken, Token},
@@ -371,6 +371,13 @@ impl MutTokenStream {
             .append(&mut i.into_iter().collect());
     }
 
+    pub fn write<T: ToTokens>(
+        &mut self,
+        t: &T,
+    ) {
+        t.write(self);
+    }
+
     shared_peek! {}
 }
 
@@ -393,24 +400,61 @@ impl std::fmt::Display for MutTokenStream {
         }
 
         let last = self.tokens.len() - 1;
-        for (pos, tok) in self.tokens.iter().enumerate() {
+        let mut pos = 0;
+        while pos < self.tokens.len() {
+            let tok = &self.tokens[pos];
+
             write!(f, "{tok}")?;
 
+            if pos == last {
+                break;
+            }
+
             let next = self.tokens.get(pos + 1);
+
+            if matches!(tok, Token::CommentSingleLine(..)) && !matches!(next, Some(Token::Newline))
+            {
+                write!(f, "\n")?;
+                pos += 1;
+                continue;
+            }
+
+            if matches!(
+                tok,
+                Token::LBrace | Token::LBracket | Token::LParen | Token::QMark
+            ) || matches!(
+                next,
+                Some(Token::RBrace)
+                    | Some(Token::RBracket)
+                    | Some(Token::RParen)
+                    | Some(Token::QMark)
+                    | Some(Token::Colon)
+            ) {
+                pos += 1;
+                continue;
+            }
+
+            // comment followed by single line comment should have new line
             if matches!(
                 tok,
                 Token::CommentMultiLine(..) | Token::CommentSingleLine(..)
+            ) && matches!(
+                next,
+                Some(Token::CommentMultiLine(..)) | Some(Token::CommentSingleLine(..))
             ) {
                 write!(f, "\n")?;
-            } else if pos != last
-                && !matches!(tok, Token::LBrace | Token::LBracket | Token::LParen)
-                && !matches!(
-                    next,
-                    Some(Token::RBrace) | Some(Token::RBracket) | Some(Token::RParen)
-                )
-            {
-                write!(f, " ")?;
+                pos += 1;
+                continue;
             }
+
+            // 1:1
+            if matches!(tok, Token::Newline) {
+                pos += 1;
+                continue; // newline token already wrote a \n via Display impl
+            }
+
+            write!(f, " ")?;
+            pos += 1;
         }
         Ok(())
     }

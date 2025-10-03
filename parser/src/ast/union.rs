@@ -118,12 +118,10 @@ impl ToTokens for Union {
 #[cfg(test)]
 mod test {
     use super::Union;
-    use crate::tokens::{Parse, Peek, tokenize};
 
     #[test_case::test_case("some_struct & (other_struct & last_struct)"; "inner parenthesized")]
     #[test_case::test_case("some_struct & other_struct & last_struct"; "no paren triplets")]
-    fn test_union_parse(src: &str) {
-        let mut tt = tokenize(src).unwrap();
-        let u: Union = Union::parse(&mut tt).unwrap();
+    fn round_trip(src: &str) {
+        crate::tst::round_trip::<Union>(src).unwrap();
     }
 }

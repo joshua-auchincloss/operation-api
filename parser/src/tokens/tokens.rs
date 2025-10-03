@@ -306,8 +306,8 @@ impl fmt::Display for Token {
             Ident(s) => write!(f, "{}", s),
             Number(n) => write!(f, "{}", n),
             String(s) => write!(f, "\"{}\"", s),
-            CommentSingleLine(s) => write!(f, "//{}", s),
-            CommentMultiLine(s) => write!(f, "/*{}*/", s),
+            CommentSingleLine(s) => write!(f, "// {}", s),
+            CommentMultiLine(s) => write!(f, "/* {} */", s),
         }
     }
 }
@@ -417,3 +417,21 @@ macro_rules! SpannedToken {
         $crate::defs::Spanned::<$crate::Token![$met]>
     };
 }
+
+macro_rules! straight_through {
+    ($ty: ident $(<$g:ident>)? {$($field: ident), + $(,)?}) => {
+        impl$(<$g: crate::Parse + crate::tokens::ToTokens>)? crate::tokens::ToTokens for $ty $(<$g>)? {
+            fn tokens(&self) -> crate::tokens::MutTokenStream {
+                let mut tt = crate::tokens::MutTokenStream::new();
+
+                $(
+                    tt.write(&self.$field);
+                )*
+
+                tt
+            }
+        }
+    };
+}
+
+pub(crate) use straight_through;

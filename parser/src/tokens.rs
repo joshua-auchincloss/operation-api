@@ -37,7 +37,7 @@ mod tests {
 
     #[test]
     fn samples_lex_without_error_tokens() {
-        for (i, src) in SAMPLE_FILES.iter().enumerate() {
+        for src in SAMPLE_FILES.iter() {
             let ts = tokenize(src).unwrap_or_else(|e| panic!("lex errors in sample {src}: {e:#?}"));
             assert!(ts.all().len() > 0);
         }

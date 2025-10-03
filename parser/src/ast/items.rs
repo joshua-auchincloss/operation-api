@@ -3,7 +3,7 @@ use crate::{
     ast::{self, comment::CommentStream, meta::ItemMeta},
     bail_unchecked,
     defs::Spanned,
-    tokens::{ImplDiagnostic, LexingError, Parse, Peek},
+    tokens::{ImplDiagnostic, LexingError, Parse, Peek, ToTokens, straight_through},
 };
 
 pub struct Item<T: Parse> {
@@ -24,12 +24,19 @@ impl<T: Parse> Parse for Item<T> {
     }
 }
 
+straight_through! {
+    Item<T> {
+        comments, meta, def, end
+    }
+}
+
 pub type NamespaceDef = Item<super::namespace::Namespace>;
 pub type ImportDef = Item<super::import::Import>;
 pub type OneOfDef = Item<super::one_of::OneOf>;
 pub type EnumDef = Item<super::enm::Enum>;
 pub type StructDef = Item<super::strct::Struct>;
 pub type TypeDef = Item<super::ty_def::NamedType>;
+pub type ErrorDef = Item<super::err::ErrorType>;
 
 pub enum Items {
     Namespace(NamespaceDef),
@@ -38,6 +45,7 @@ pub enum Items {
     Enum(EnumDef),
     Struct(StructDef),
     Type(TypeDef),
+    Error(ErrorDef),
 }
 
 impl Parse for Items {
@@ -61,6 +69,13 @@ impl Parse for Items {
             })
         } else if stream.peek::<ast::one_of::OneOf>() {
             Self::OneOf(OneOfDef {
+                comments,
+                meta,
+                def: stream.parse()?,
+                end: stream.parse()?,
+            })
+        } else if stream.peek::<ast::err::ErrorType>() {
+            Self::Error(ErrorDef {
                 comments,
                 meta,
                 def: stream.parse()?,
@@ -126,6 +141,25 @@ impl Peek for Items {
     }
 }
 
+impl ToTokens for Items {
+    fn tokens(&self) -> crate::tokens::MutTokenStream {
+        let mut tt = crate::tokens::MutTokenStream::new();
+
+        use Items::*;
+        match self {
+            Namespace(def) => tt.write(def),
+            Import(def) => tt.write(def),
+            OneOf(def) => tt.write(def),
+            Enum(def) => tt.write(def),
+            Struct(def) => tt.write(def),
+            Type(def) => tt.write(def),
+            Error(def) => tt.write(def),
+        }
+
+        tt
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::{
@@ -140,17 +174,39 @@ namespace test;
 #[version(1)]
 struct test_arrays {
     a: str[]
-};", 2; "parses struct & namespace"
+};", 2; "parses struct"
+    )]
+    #[test_case::test_case(
+        "
+namespace test;
+
+#[version(1)]
+oneof test_oneof {
+    a(i32),
+    b { desc: i32[] },
+};", 2; "parses named oneof"
+    )]
+    #[test_case::test_case(
+        "
+namespace test;
+
+#[version(1)]
+error test_error {
+    a(i32),
+    b { desc: i32[] },
+};", 2; "parses named error"
+    )]
+    #[test_case::test_case(
+        "
+namespace test;
+import \"abc.pld\";
+", 2; "parses import"
     )]
     fn basic_smoke(
         src: &str,
         n_items: usize,
     ) {
-        crate::tst::logging();
-
-        let mut tt = tokenize(src).unwrap();
-        println!("{tt:#?}");
-        let items: Vec<Spanned<super::Items>> = Vec::parse(&mut tt).unwrap();
+        let items: Vec<Spanned<super::Items>> = crate::tst::basic_smoke(src);
         assert_eq!(items.len(), n_items);
     }
 }

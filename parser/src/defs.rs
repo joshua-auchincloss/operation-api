@@ -1,7 +1,6 @@
 pub mod ident;
+use crate::{Peek, tokens::ToTokens};
 pub use ident::*;
-
-use crate::tokens::ToTokens;
 
 pub use span::Span;
 
@@ -76,5 +75,15 @@ impl<T> std::ops::Deref for Spanned<T> {
 impl<T: ToTokens> ToTokens for Spanned<T> {
     fn tokens(&self) -> crate::tokens::MutTokenStream {
         self.value.tokens()
+    }
+}
+
+impl<T: Peek> Peek for Spanned<T> {
+    fn is(token: &crate::tokens::Token) -> bool {
+        T::is(token)
+    }
+
+    fn peek(stream: &crate::tokens::TokenStream) -> bool {
+        T::peek(stream)
     }
 }

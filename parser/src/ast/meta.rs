@@ -1,7 +1,7 @@
 use crate::{
     SpannedToken, Token, bail_unchecked,
     defs::Spanned,
-    tokens::{self, Bracket, Paren, Parse, Peek, bracket, paren},
+    tokens::{self, Bracket, MutTokenStream, Paren, Parse, Peek, ToTokens, bracket, paren},
 };
 
 pub struct Meta<Value: Parse> {
@@ -60,6 +60,24 @@ impl<Value: Parse + Peek> tokens::Parse for Meta<Value> {
     }
 }
 
+impl<Value: Parse + Peek + ToTokens> ToTokens for Meta<Value> {
+    fn tokens(&self) -> MutTokenStream {
+        let mut tt = MutTokenStream::new();
+
+        tt.write(&self.open);
+        tt.write(&self.inner);
+
+        tt.write(&tokens::LBracketToken::new());
+        tt.write(&self.name);
+        tt.write(&tokens::LParenToken::new());
+        tt.write(&self.value);
+        tt.write(&tokens::RParenToken::new());
+        tt.write(&tokens::RBracketToken::new());
+
+        tt
+    }
+}
+
 pub type IntMeta = Meta<Token![number]>;
 pub type StrMeta = Meta<Token![string]>;
 
@@ -107,6 +125,26 @@ impl Parse for ItemMeta {
     }
 }
 
+impl ToTokens for ItemMetaItem {
+    fn tokens(&self) -> MutTokenStream {
+        let mut tt = MutTokenStream::new();
+        match self {
+            ItemMetaItem::Version(m) => tt.write(m),
+        }
+        tt
+    }
+}
+
+impl ToTokens for ItemMeta {
+    fn tokens(&self) -> MutTokenStream {
+        let mut tt = MutTokenStream::new();
+        for m in &self.meta {
+            tt.write(m);
+        }
+        tt
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::fmt::Debug;
@@ -147,6 +185,7 @@ mod test {
         let meta: Spanned<ItemMeta> = tt.parse().unwrap();
         let version = match meta.meta.get(0).unwrap() {
             ItemMetaItem::Version(ver) => ver,
+            #[allow(unreachable_patterns)]
             _ => panic!("not version"),
         };
         assert_eq!(*version.value.value.borrow_i32(), expect_version);

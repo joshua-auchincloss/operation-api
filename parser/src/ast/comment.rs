@@ -108,12 +108,8 @@ mod test {
     }
 
     #[test_case::test_case(
-        "//first single line\n/*subsequent multi-line.\nthe next line within.*/\n";
+        "// first single line\n/* subsequent multi-line.\nthe next line within. */";
         "comment stream round trip"
-    )]
-    #[test_case::test_case(
-        "//first single line\n/*subsequent multi-line.\nthe next line within.*/\n";
-        "comment stream round trip with training values"
     )]
     pub fn round_trip(src: &str) {
         crate::tst::round_trip::<CommentStream>(src).unwrap();

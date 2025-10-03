@@ -1,5 +1,8 @@
 use crate::{
-    ast::{comment::CommentStream, ty::Type},
+    ast::{
+        comment::{CommentAst, CommentStream},
+        ty::Type,
+    },
     tokens::{self, Token},
 };
 
@@ -95,6 +98,18 @@ impl Peek for Arg {
     fn is(token: &crate::tokens::tokens::Token) -> bool {
         <Token![ident]>::is(token)
     }
+    fn peek(stream: &crate::tokens::TokenStream) -> bool {
+        // Allow any number of leading comments before an argument identifier.
+        let mut fork = stream.fork();
+        // consume zero or more comments
+        while fork.peek::<CommentAst>() {
+            // ignore errors; if a comment can't parse we break
+            if fork.parse::<Spanned<CommentAst>>().is_err() {
+                break;
+            }
+        }
+        fork.peek::<Token![ident]>()
+    }
 }
 
 pub struct Struct {
@@ -151,8 +166,6 @@ mod test {
         let mut stream = tokenize(src).unwrap();
         let parsed = Struct::parse(&mut stream).expect("Should parse struct");
 
-        let tok = parsed.tokens();
-
         assert_eq!(parsed.name.borrow_string(), expected_name);
 
         for (pos, (expect_name, expect_ty, expect_comment, expect_required)) in
@@ -163,7 +176,17 @@ mod test {
             assert_eq!(field.value.name.borrow_string(), expect_name);
             assert_eq!(&format!("{}", field.value.typ.tokens()), expect_ty);
             assert_eq!(
-                &format!("{}", field.value.comments.tokens()),
+                &format!(
+                    "{}",
+                    field
+                        .value
+                        .value
+                        .comments
+                        .comments()
+                        .map(Clone::clone)
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                ),
                 expect_comment
             );
 

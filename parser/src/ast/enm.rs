@@ -1,10 +1,10 @@
-use crate::tokens::Brace;
+use crate::tokens::{self, Brace, ToTokens};
 
 use crate::{
     SpannedToken, Token,
     ast::comment::CommentStream,
     defs::Spanned,
-    tokens::{ImplDiagnostic, Parse, Peek, Repeated, brace},
+    tokens::{ImplDiagnostic, MutTokenStream, Parse, Peek, Repeated, brace},
 };
 
 pub struct EnumValue<Value: Parse> {
@@ -24,6 +24,17 @@ impl<Value: Parse> Parse for EnumValue<Value> {
             eq: stream.parse()?,
             value: stream.parse()?,
         })
+    }
+}
+
+impl<V: Parse + ToTokens> ToTokens for EnumValue<V> {
+    fn tokens(&self) -> MutTokenStream {
+        let mut tt = MutTokenStream::new();
+
+        tt.write(&self.eq);
+        tt.write(&self.value);
+
+        tt
     }
 }
 
@@ -55,6 +66,18 @@ impl<Value: Parse + Peek> ImplDiagnostic for EnumVariant<Value> {
     }
 }
 
+impl<V: Parse + Peek + ToTokens> ToTokens for EnumVariant<V> {
+    fn tokens(&self) -> MutTokenStream {
+        let mut tt = MutTokenStream::new();
+
+        tt.write(&self.comments);
+        tt.write(&self.name);
+        tt.write(&self.value);
+
+        tt
+    }
+}
+
 pub struct TypedEnum<Value: Parse + Peek> {
     pub kw: SpannedToken![enum],
     pub name: SpannedToken![ident],
@@ -71,6 +94,20 @@ impl<Value: Parse + Peek + ImplDiagnostic> Parse for TypedEnum<Value> {
             brace: brace!(brace in stream),
             variants: Repeated::parse(&mut brace)?,
         })
+    }
+}
+
+impl<V: Parse + Peek + ToTokens> ToTokens for TypedEnum<V> {
+    fn tokens(&self) -> MutTokenStream {
+        let mut tt = MutTokenStream::new();
+
+        tt.write(&self.kw);
+        tt.write(&self.name);
+        tt.write(&tokens::LBraceToken::new());
+        tt.write(&self.variants);
+        tt.write(&tokens::RBraceToken::new());
+
+        tt
     }
 }
 
@@ -104,6 +141,25 @@ impl Parse for Enum {
                 Self::Str(TypedEnum::parse(stream)?)
             },
         )
+    }
+}
+
+impl ToTokens for Enum {
+    fn tokens(&self) -> MutTokenStream {
+        let mut tt = MutTokenStream::new();
+
+        let (kw, name, variants) = match self {
+            Self::Int(i) => (&i.kw, &i.name, i.variants.tokens()),
+            Self::Str(s) => (&s.kw, &s.name, s.variants.tokens()),
+        };
+
+        tt.write(kw);
+        tt.write(name);
+        tt.write(&tokens::LBraceToken::new());
+        tt.extend(variants);
+        tt.write(&tokens::RBraceToken::new());
+
+        tt
     }
 }
 

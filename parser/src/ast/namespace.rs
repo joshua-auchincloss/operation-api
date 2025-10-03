@@ -1,6 +1,6 @@
 use crate::{
     SpannedToken, Token,
-    tokens::{Parse, Peek, Token},
+    tokens::{Parse, Peek, Token, straight_through},
 };
 
 pub struct Namespace {
@@ -20,5 +20,11 @@ impl Parse for Namespace {
 impl Peek for Namespace {
     fn is(token: &Token) -> bool {
         <Token![namespace]>::is(token)
+    }
+}
+
+straight_through! {
+    Namespace {
+        kw, name
     }
 }

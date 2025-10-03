@@ -1,7 +1,4 @@
-use crate::{
-    Parse,
-    tokens::{self, AstResult, ToTokens, tokenize},
-};
+use crate::tokens::{self, AstResult, ToTokens, tokenize};
 
 pub fn logging() {
     use std::sync::Once;
@@ -9,15 +6,6 @@ pub fn logging() {
     static ONCE: Once = Once::new();
 
     ONCE.call_once(|| {
-        // miette::set_hook(Box::new(|_| {
-        //     Box::new(|e: &miette::Error| {
-        //         eprintln!("Error: {}", e);
-        //         if let Some(source) = e.source() {
-        //             eprintln!("Caused by: {}", source);
-        //         }
-        //     })
-        // }))
-        // .expect("Failed to set miette hook");
         tracing_subscriber::fmt()
             .with_max_level(tracing::Level::TRACE)
             .pretty()
@@ -28,14 +16,14 @@ pub fn logging() {
 #[macro_export]
 macro_rules! assert_matches_debug {
     ($root: literal, $p: ident) => {
-        // let expect = include_str!($root);
         let observed = format!("{:#?}", $p);
         std::fs::write(stringify!($root), &observed).unwrap();
-        // assert_eq!(expect, observed);
     };
 }
 
 pub fn round_trip<T: tokens::Parse + ToTokens>(src: &str) -> AstResult<T> {
+    logging();
+
     let mut tt = tokenize(src)?;
 
     let t = T::parse(&mut tt)?;
@@ -46,4 +34,12 @@ pub fn round_trip<T: tokens::Parse + ToTokens>(src: &str) -> AstResult<T> {
     assert_eq!(src, fmt);
 
     Ok(t)
+}
+
+pub fn basic_smoke<T: tokens::Parse>(src: &str) -> T {
+    logging();
+
+    let mut tt = tokenize(src).unwrap();
+
+    T::parse(&mut tt).unwrap()
 }

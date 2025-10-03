@@ -2,7 +2,7 @@ use crate::{
     SpannedToken, Token,
     ast::ty::Type,
     defs::Spanned,
-    tokens::{Parse, Peek},
+    tokens::{Parse, Peek, straight_through},
 };
 
 pub struct NamedType {
@@ -27,4 +27,8 @@ impl Peek for NamedType {
     fn is(token: &crate::tokens::Token) -> bool {
         <Token![type]>::is(token)
     }
+}
+
+straight_through! {
+    NamedType { kw, name, eq, ty }
 }
