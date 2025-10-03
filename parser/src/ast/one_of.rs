@@ -1,10 +1,10 @@
 use crate::{
     SpannedToken, Token,
     ast::{comment::CommentStream, ty::Type},
-    defs::{Spanned, span::Span},
+    defs::Spanned,
     tokens::{
-        Brace, ImplDiagnostic, MutTokenStream, Paren, Parse, Peek, Repeated, SpannedToken,
-        ToTokens, brace, paren, tokens,
+        Brace, ImplDiagnostic, MutTokenStream, Paren, Parse, Peek, Repeated, ToTokens, brace,
+        paren, tokens,
     },
 };
 
@@ -38,6 +38,7 @@ impl ImplDiagnostic for AnonymousOneOf {
 
 impl Parse for AnonymousOneOf {
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
+        tracing::trace!(cursor=%stream.cursor(), "parsing oneof");
         let kw: SpannedToken![oneof] = stream.parse()?;
 
         let first: Spanned<Type> = stream.parse()?;
@@ -84,7 +85,7 @@ impl Parse for AnonymousOneOf {
 }
 
 impl Peek for AnonymousOneOf {
-    fn is(token: &tokens::SpannedToken) -> bool {
+    fn is(token: &tokens::Token) -> bool {
         <Token![oneof]>::is(token)
     }
 }
@@ -108,12 +109,14 @@ pub enum OneOfVariants {
 
 impl Parse for OneOfVariants {
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
+        tracing::trace!(cursor=%stream.cursor(), "parsing oneof variant");
         let comments = CommentStream::parse(stream)?;
         let name = stream.parse()?;
 
         let mut inner;
 
         Ok(if stream.peek::<tokens::LBraceToken>() {
+            tracing::trace!("parsing local struct variant");
             let brace = brace!(inner in stream);
             let fields = inner.parse()?;
             Self::LocalStruct {
@@ -123,6 +126,7 @@ impl Parse for OneOfVariants {
                 fields,
             }
         } else {
+            tracing::trace!("parsing tuple variant");
             let paren = paren!(inner in stream);
             let inner = Type::parse(&mut inner)?;
             Self::Tuple {
@@ -137,13 +141,14 @@ impl Parse for OneOfVariants {
 pub struct OneOf {}
 
 impl Parse for OneOf {
+    #[allow(unused)]
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
         todo!()
     }
 }
 
 impl Peek for OneOf {
-    fn is(token: &crate::tokens::tokens::SpannedToken) -> bool {
+    fn is(token: &crate::tokens::tokens::Token) -> bool {
         <Token![oneof]>::is(token)
     }
 }

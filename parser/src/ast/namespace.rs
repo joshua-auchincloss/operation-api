@@ -1,4 +1,7 @@
-use crate::{SpannedToken, ast::comment::CommentStream, tokens::Parse};
+use crate::{
+    SpannedToken, Token,
+    tokens::{Parse, Peek, Token},
+};
 
 pub struct Namespace {
     pub kw: SpannedToken![namespace],
@@ -11,5 +14,11 @@ impl Parse for Namespace {
             kw: stream.parse()?,
             name: stream.parse()?,
         })
+    }
+}
+
+impl Peek for Namespace {
+    fn is(token: &Token) -> bool {
+        <Token![namespace]>::is(token)
     }
 }

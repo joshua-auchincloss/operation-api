@@ -1,6 +1,6 @@
 use crate::{
     SpannedToken, Token,
-    ast::{array::Array, def::EnumDef, one_of::AnonymousOneOf},
+    ast::{array::Array, one_of::AnonymousOneOf, union::Union},
     defs::Spanned,
     tokens::*,
 };
@@ -17,7 +17,7 @@ macro_rules! builtin {
             }
 
             impl Peek for Builtin {
-                fn is(token: &tokens::SpannedToken) -> bool {
+                fn is(token: &tokens::Token) -> bool {
                     false  $(
                        || crate::tokens::tokens::[<Kw $t Token>]::is(token)
                     )*
@@ -91,42 +91,78 @@ builtin! {
     U32,
     U64,
 
+    Usize,
+
     F16,
     F32,
     F64,
 
     Bool,
     Str,
+
+    DateTime,
+    Complex,
+    Binary,
+
+    Never
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Type {
-    Builtin { ty: Spanned<Builtin> },
-    Ident { to: SpannedToken![ident] },
-    OneOf { ty: Spanned<AnonymousOneOf> },
-    Array { ty: Spanned<Array> },
-    Paren { paren: Paren, ty: Spanned<Box<Type>>,  },
+    Builtin {
+        ty: Spanned<Builtin>,
+    },
+    Ident {
+        to: SpannedToken![ident],
+    },
+    OneOf {
+        ty: Spanned<AnonymousOneOf>,
+    },
+    Array {
+        ty: Spanned<Array>,
+    },
+    Paren {
+        paren: Paren,
+        ty: Spanned<Box<Type>>,
+    },
+    Union {
+        ty: Spanned<Union>,
+    },
 }
 
 impl Parse for Type {
     fn parse(stream: &mut TokenStream) -> Result<Self, LexingError> {
-        let mut current: Spanned<Type> = if stream.peek::<AnonymousOneOf>() {
-            let one: Spanned<AnonymousOneOf> = stream.parse()?;
-            Spanned::new(one.span.start, one.span.end, Type::OneOf { ty: one })
+        tracing::trace!(cursor=%stream.cursor(), "parsing type");
+        let start = stream.current_span().start;
+        let current: Type = if stream.peek::<AnonymousOneOf>() {
+            tracing::trace!("parsing oneof in type");
+            Type::OneOf {
+                ty: stream.parse()?,
+            }
+        } else if stream.peek::<Union>() {
+            tracing::trace!("parsing union in type");
+            Type::Union {
+                ty: stream.parse()?,
+            }
         } else if stream.peek::<tokens::LParenToken>() {
-            let mut inner_tokens;
-            let paren = paren!(inner_tokens in stream);
-            let ty: Spanned<Box<Type>> = inner_tokens.parse()?;
-
-            Spanned::new(paren.span().start, paren.span().end, Type::Paren { paren, ty })
+            tracing::trace!("parsing paren type");
+            let mut inner;
+            let paren = paren!(inner in stream);
+            Type::Paren {
+                paren,
+                ty: inner.parse()?,
+            }
         } else if stream.peek::<Builtin>() {
-            let bi: Spanned<Builtin> = stream.parse()?;
-
-            Spanned::new(bi.span.start, bi.span.end, Type::Builtin { ty: bi })
+            tracing::trace!("parsing builtin in type");
+            Type::Builtin {
+                ty: stream.parse()?,
+            }
         } else if stream.peek::<Token![ident]>() {
-            let ident: SpannedToken![ident] = stream.parse()?;
-            Spanned::new(ident.span.start, ident.span.end, Type::Ident { to: ident })
+            tracing::trace!("parsing ident in type");
+            Type::Ident {
+                to: stream.parse()?,
+            }
         } else {
             let expect = vec![
                 AnonymousOneOf::fmt(),
@@ -140,10 +176,13 @@ impl Parse for Type {
             });
         };
 
+        let end = stream.current_span().end;
+        let mut current = Spanned::new(start, end, current);
 
         // we need to be careful here and manually parse the Array types. this is because if
         // we use Array::parse, we can run into infinite recursion errors as the array parses the inner types
         while stream.peek::<tokens::LBracketToken>() {
+            tracing::trace!("parsing trailing array suffix");
             let mut inner_tokens;
             let bracket = bracket!(inner_tokens in stream); // unit ()
             let size: Option<SpannedToken![number]> = if inner_tokens.peek::<Token![number]>() {
@@ -201,6 +240,7 @@ impl ToTokens for Type {
             Self::Ident { to } => to.tokens(),
             Self::OneOf { ty } => ty.tokens(),
             Self::Array { ty } => ty.tokens(),
+            Self::Union { ty } => ty.tokens(),
             Self::Paren { ty, .. } => {
                 let mut tt = MutTokenStream::new();
                 tt.push(Token::LParen);
@@ -212,52 +252,8 @@ impl ToTokens for Type {
     }
 }
 
-
 #[cfg(test)]
 mod test {
-    use crate::{
-        defs::Spanned,
-        tokens::{ToTokens, tokenize},
-    };
-
-    #[test_case::test_case(
-        "i32", 
-        serde_json::json!({"span":{"end":3,"start":0},"value":{"builtin":{"ty":{"span":{"end":3,"start":0},"value":{"span":{"end":3,"start":0},"type":"i32","value":null}}}}}); 
-        "parses i32"
-    )]
-    // simplified: ensure we parse and round trip but we don't assert full JSON for oneof here
-    #[test_case::test_case(
-        "oneof i32 | i64 | str", 
-        serde_json::json!({}); 
-        "parses oneof with builtins"
-    )]
-    #[test_case::test_case(
-        "i32[]",
-        serde_json::json!({"span":{"end":5,"start":0},"value":{"array":{"ty":{"span":{"end":5,"start":0},"value":{"unsized":{"bracket":null,"ty":{"span":{"end":3,"start":0},"value":{"builtin":{"ty":{"span":{"end":3,"start":0},"value":{"span":{"end":3,"start":0},"type":"i32","value":null}}}}}}}}}}});
-        "parses unsized single level array with builtin"
-    )]
-    #[test_case::test_case(
-        "i32[][][]", 
-        serde_json::json!({});
-        "parses unsized multi level array with builtin"
-    )]
-    fn test_stp(
-        src: &str,
-        expect: serde_json::Value,
-    ) {
-        let mut tt = tokenize(src).unwrap();
-        let p: Spanned<super::Type> = tt.parse().unwrap();
-
-        let as_j = serde_json::to_value(&p).unwrap();
-
-        let found = serde_json::to_string(&as_j).unwrap();
-        println!("found {found}");
-
-        assert_eq!(
-            as_j, expect,
-            "expected spans must equal returned spans for builtin types"
-        );
-    }
 
     #[test_case::test_case("i8")]
     #[test_case::test_case("i16")]
@@ -281,16 +277,14 @@ mod test {
     #[test_case::test_case("oneof i32 | i64 | str | bool | f32 | u8 []"; "round trip nested oneof")]
     #[test_case::test_case("str [] [] []"; "round trip triple unsized array")]
     #[test_case::test_case("bool [42]"; "round trip sized bool array")]
+    #[test_case::test_case("binary"; "round trip binary")]
+    #[test_case::test_case("datetime"; "round trip datetime")]
+    #[test_case::test_case("never"; "round trip never")]
+    #[test_case::test_case("(oneof i32 | f32) []"; "round trip nested oneof array with paren")]
+    #[test_case::test_case("oneof my_struct | never"; "round trip ident and never")]
+    #[test_case::test_case("my_struct & other_struct"; "basic union")]
+    #[test_case::test_case("my_struct & ((other_struct & inner_struct) & next_struct)"; "nested union")]
     fn round_trip(src: &str) {
-        let mut tt = tokenize(src).unwrap();
-        let p: Spanned<super::Type> = tt.parse().unwrap();
-
-        let tokens = p.tokens();
-
-        println!("{tokens:#?}");
-        
-        let out = format!("{tokens}");
-
-        assert_eq!(out, src);
+        crate::tst::round_trip::<super::Type>(src).unwrap();
     }
 }

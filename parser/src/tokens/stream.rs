@@ -1,10 +1,10 @@
 use logos::Logos;
-use std::{iter::Map, rc::Rc};
+use std::sync::Arc;
 
 use crate::{
     defs::{Spanned, span::Span},
     tokens::{
-        AstResult, ImplDiagnostic,
+        AstResult, ImplDiagnostic, NewlineToken,
         ast::{Parse, Peek},
         error::LexingError,
         tokens::{SpannedToken, Token},
@@ -13,14 +13,41 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct TokenStream {
-    pub(crate) source: Rc<str>,
-    pub(crate) tokens: Rc<Vec<SpannedToken>>,
-    pub(crate) cursor: usize,
+    pub(crate) source: Arc<str>,
+    pub(crate) tokens: Arc<Vec<SpannedToken>>,
+    pub(crate) cursor: usize, // absolute cursor
+    range_start: usize,       // visible window start (absolute)
+    range_end: usize,         // visible window end (exclusive, absolute)
+}
+
+macro_rules! shared_peek {
+    () => {
+        pub fn has_tokens_before_newline<T: Peek>(
+            &self,
+            pos: usize,
+        ) -> bool {
+            if let Some(current) = self.tokens.get(pos) {
+                if T::is(current) {
+                    return true;
+                }
+                for tok in self.tokens[..pos - 1].iter().rev() {
+                    if NewlineToken::is(tok) {
+                        return false;
+                    } else if T::is(tok) {
+                        return true;
+                    }
+                }
+                false
+            } else {
+                false
+            }
+        }
+    };
 }
 
 impl TokenStream {
     pub fn lex(source: &str) -> Result<Self, LexingError> {
-        let source_rc: Rc<str> = Rc::from(source);
+        let source_rc: Arc<str> = Arc::from(source);
         let mut lex = Token::lexer(&source_rc);
         let mut toks = Vec::new();
         while let Some(token) = lex.next() {
@@ -28,10 +55,13 @@ impl TokenStream {
             let span = lex.span();
             toks.push(Spanned::new(span.start, span.end, token));
         }
+        let range_end = toks.len();
         Ok(Self {
             source: source_rc,
-            tokens: Rc::new(toks),
+            tokens: Arc::new(toks),
             cursor: 0,
+            range_start: 0,
+            range_end,
         })
     }
     pub fn fork(&self) -> Self {
@@ -39,10 +69,12 @@ impl TokenStream {
             source: self.source.clone(),
             tokens: self.tokens.clone(),
             cursor: self.cursor,
+            range_start: self.range_start,
+            range_end: self.range_end,
         }
     }
     pub fn is_empty(&self) -> bool {
-        self.cursor >= self.tokens.len()
+        self.cursor >= self.range_end
     }
 
     pub fn peek_unchecked(&self) -> Option<&SpannedToken> {
@@ -60,17 +92,29 @@ impl TokenStream {
     }
 
     pub fn peek_unchecked_with_whitespace(&self) -> Option<&SpannedToken> {
-        self.tokens.get(self.cursor)
+        if self.cursor < self.range_end {
+            self.tokens.get(self.cursor)
+        } else {
+            None
+        }
     }
 
     pub fn nth(
         &self,
         n: usize,
     ) -> Option<&SpannedToken> {
-        self.tokens.get(self.cursor + n)
+        let idx = self.cursor + n;
+        if idx < self.range_end {
+            self.tokens.get(idx)
+        } else {
+            None
+        }
     }
 
     pub fn next_with_whitespace(&mut self) -> Option<SpannedToken> {
+        if self.cursor >= self.range_end {
+            return None;
+        }
         let t = self.tokens.get(self.cursor).cloned();
         if t.is_some() {
             self.cursor += 1;
@@ -84,6 +128,7 @@ impl TokenStream {
             if !matches!(v.value, Token::Newline) {
                 return Some(v);
             } else {
+                tracing::trace!(cursor=%self.cursor, "skipping whitespace");
                 next = self.next_with_whitespace();
             }
         }
@@ -98,13 +143,14 @@ impl TokenStream {
         &mut self,
         to: usize,
     ) {
-        self.cursor = to.min(self.tokens.len());
+        let clamped = to.clamp(self.range_start, self.range_end);
+        self.cursor = clamped;
     }
     pub fn len(&self) -> usize {
-        self.tokens.len() - self.cursor
+        self.range_end.saturating_sub(self.cursor)
     }
     pub fn all(&self) -> &[SpannedToken] {
-        &self.tokens
+        &self.tokens[self.range_start..self.range_end]
     }
     pub fn source(&self) -> &str {
         &self.source
@@ -124,11 +170,37 @@ impl TokenStream {
         T::peek(self)
     }
 
+    pub fn span_of(
+        &self,
+        cursor: usize,
+    ) -> Option<&Span> {
+        if cursor < self.range_end {
+            self.tokens.get(cursor).map(|t| &t.span)
+        } else {
+            None
+        }
+    }
+
+    pub fn current_span(&self) -> &Span {
+        self.span_of(self.cursor)
+            .unwrap_or(&Span { start: 0, end: 0 })
+    }
+
+    pub fn last_span(&self) -> Option<&Span> {
+        if self.cursor != 0 {
+            self.span_of(self.cursor - 1)
+        } else {
+            None
+        }
+    }
+
+    shared_peek! {}
+
     pub fn extract_inner_tokens<
         Open: Parse + Peek + ImplDiagnostic,
         Close: Parse + Peek + ImplDiagnostic,
     >(
-        self: &mut Self
+        &mut self
     ) -> AstResult<(TokenStream, Spanned<()>)> {
         let (mut depth, first_span) = if let Some(first) = self.next() {
             if !Open::is(&first) {
@@ -139,7 +211,7 @@ impl TokenStream {
             return Err(LexingError::empty::<Open>());
         };
 
-        let start_pos = self.cursor - 1;
+        let open_index = self.cursor - 1; // absolute index of opening token
 
         let mut end_pos = None;
 
@@ -158,17 +230,20 @@ impl TokenStream {
             }
         }
 
-        // todo: this should really be a reference to the inner tokens vs a clone op as below
         if let Some(end) = end_pos {
-            // fork w/o opening and closing tokens
-            let inner_tokens = Rc::new(self.tokens[start_pos + 1..end - 1].to_vec());
+            // end is position AFTER closing token consumed
+            let close_index = end - 1; // closing token
+            let inner_start = open_index + 1;
+            let inner_end = close_index; // exclusive range
             Ok((
                 TokenStream {
                     source: self.source.clone(),
-                    tokens: inner_tokens,
-                    cursor: 0,
+                    tokens: self.tokens.clone(),
+                    cursor: inner_start,
+                    range_start: inner_start,
+                    range_end: inner_end,
                 },
-                Spanned::new(start_pos, end, ()),
+                Spanned::new(open_index, end, ()),
             ))
         } else {
             let mut err = LexingError::empty::<Close>();
@@ -256,9 +331,9 @@ impl IntoIterator for TokenStream {
     type IntoIter = <Vec<Token> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.tokens[..]
-            .to_vec()
-            .into_iter()
+        self.tokens[self.range_start..self.range_end]
+            .iter()
+            .cloned()
             .map(spanned_value)
             .collect::<Vec<_>>()
             .into_iter()
@@ -295,6 +370,8 @@ impl MutTokenStream {
         self.tokens
             .append(&mut i.into_iter().collect());
     }
+
+    shared_peek! {}
 }
 
 impl IntoIterator for MutTokenStream {
@@ -320,7 +397,12 @@ impl std::fmt::Display for MutTokenStream {
             write!(f, "{tok}")?;
 
             let next = self.tokens.get(pos + 1);
-            if pos != last
+            if matches!(
+                tok,
+                Token::CommentMultiLine(..) | Token::CommentSingleLine(..)
+            ) {
+                write!(f, "\n")?;
+            } else if pos != last
                 && !matches!(tok, Token::LBrace | Token::LBracket | Token::LParen)
                 && !matches!(
                     next,

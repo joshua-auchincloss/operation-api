@@ -1,18 +1,22 @@
 use crate::{
     defs::{Spanned, span::Span},
-    tokens::{ImplDiagnostic, error::LexingError, stream::TokenStream, tokens::SpannedToken},
+    tokens::{
+        ImplDiagnostic, ToTokens, Token, error::LexingError, stream::TokenStream,
+        tokens::SpannedToken,
+    },
 };
 
 #[allow(unused_variables)]
 pub trait Peek: Sized {
     fn peek(stream: &TokenStream) -> bool {
         if let Some(token) = stream.peek_unchecked() {
-            Self::is(token)
+            Self::is(&token.value)
         } else {
             false
         }
     }
-    fn is(token: &SpannedToken) -> bool {
+
+    fn is(token: &Token) -> bool {
         false
     }
 }
@@ -36,10 +40,9 @@ pub trait Parse: Sized {
 
         let end = stream
             .tokens
-            .get(stream.cursor - 1)
-            .expect("parsing guarantees position")
-            .span
-            .end;
+            .get(stream.cursor.saturating_sub(1))
+            .map(|it| it.span.end)
+            .unwrap_or(0);
 
         Ok(Spanned::new(start, end, p))
     }
@@ -68,7 +71,7 @@ impl<T: Parse> Parse for Box<T> {
 }
 
 impl<T: Peek> Peek for Box<T> {
-    fn is(token: &SpannedToken) -> bool {
+    fn is(token: &Token) -> bool {
         T::is(token)
     }
 }
@@ -140,5 +143,35 @@ impl<T: Parse + Peek> Parse for Vec<Spanned<T>> {
             out.push(stream.parse()?);
         }
         Ok(out)
+    }
+}
+
+impl<T: Peek + Parse + ToTokens, Sep: Peek + Parse + ToTokens> super::ToTokens
+    for Repeated<T, Sep>
+{
+    fn tokens(&self) -> super::MutTokenStream {
+        let mut tt = super::MutTokenStream::new();
+        for v in &self.values {
+            v.value.write(&mut tt);
+            v.sep.write(&mut tt);
+        }
+
+        tt
+    }
+}
+
+impl<T: ToTokens> ToTokens for Option<T> {
+    fn tokens(&self) -> super::MutTokenStream {
+        let mut tt = super::MutTokenStream::new();
+        if let Some(v) = self {
+            v.write(&mut tt);
+        }
+        tt
+    }
+}
+
+impl<T: ToTokens> ToTokens for Box<T> {
+    fn tokens(&self) -> super::MutTokenStream {
+        self.as_ref().tokens()
     }
 }

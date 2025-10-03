@@ -1,6 +1,8 @@
+pub mod array;
 pub mod comment;
 pub mod def;
 pub mod enm;
+pub mod err;
 pub mod ident;
 pub mod import;
 pub mod meta;
@@ -8,4 +10,5 @@ pub mod namespace;
 pub mod one_of;
 pub mod strct;
 pub mod ty;
-pub mod array;
+pub mod ty_def;
+pub mod union;

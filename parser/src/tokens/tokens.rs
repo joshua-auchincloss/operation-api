@@ -1,6 +1,6 @@
 use crate::{
     defs::{Spanned, span::Span},
-    tokens::{ImplDiagnostic, MutTokenStream, TokenStream, error::LexingError},
+    tokens::{ImplDiagnostic, MutTokenStream, error::LexingError},
 };
 use logos::Logos;
 use std::fmt;
@@ -27,6 +27,8 @@ macro_rules! tokens {
             $tok:ident $(($inner:ty))?
         ),+ $(,)?
     ) => {
+
+        #[allow(non_snake_case, unused)]
         #[derive(Logos, Clone, PartialEq)]
         #[logos(skip r"[ \t\r\f]+")]
         #[logos(error = LexingError)]
@@ -40,6 +42,7 @@ macro_rules! tokens {
 
         paste::paste!{
             $(
+                #[allow(non_snake_case, unused)]
                 #[doc = concat!(
                     "Represents `", $($met)? $($fmt)?, "` token(s)"
                 )]
@@ -60,6 +63,7 @@ macro_rules! tokens {
                     }
                 }
 
+                #[allow(non_snake_case, unused)]
                 impl [<$tok Token>]{
                     pub fn new($([<$inner:snake>]: $inner ,)*)-> Self {
                         Self($([<$inner:snake>],)*())
@@ -84,15 +88,16 @@ macro_rules! tokens {
                 }
 
 
-                #[allow(unused_attributes, dead_code)]
+                #[allow(non_snake_case, unused, dead_code)]
                 impl crate::tokens::ast::Peek for [<$tok Token>] {
-                    fn is(token: &SpannedToken) -> bool {
-                        matches!(&token.value, Token::$tok $(
+                    fn is(token: &Token) -> bool {
+                        matches!(&token, Token::$tok $(
                             ($inner)
                         )?)
                     }
                 }
 
+                #[allow(non_snake_case)]
                 impl crate::tokens::ast::Parse for [<$tok Token>] {
                     fn parse(tokens: &mut crate::tokens::stream::TokenStream) -> Result<Self, LexingError> {
                         #[allow(unused_parens)]
@@ -110,8 +115,8 @@ macro_rules! tokens {
                                 }
                             ),
                             None => return Err(LexingError::empty::<[<$tok Token>]>().with_span(
-                                    Span::new(tokens.cursor - 1, tokens.cursor)
-                                ))
+                                Span::new(tokens.cursor.saturating_sub(1), tokens.cursor)
+                            ))
                         };
                         Ok(Self($($inner,)* close))
                     }
@@ -124,6 +129,8 @@ macro_rules! tokens {
 pub(crate) use tokens as declare_tokens;
 
 declare_tokens! {
+    #[token("&")]
+    Amp,
     #[token("::")]
     DoubleColon,
     #[token("{")]
@@ -195,12 +202,24 @@ declare_tokens! {
     KwU32,
     #[token("u64")]
     KwU64,
+    #[token("usize")]
+    KwUsize,
     #[token("f16")]
     KwF16,
     #[token("f32")]
     KwF32,
     #[token("f64")]
     KwF64,
+    #[token("complex")]
+    KwComplex,
+    #[token("datetime")]
+    KwDateTime,
+    #[token("binary")]
+    KwBinary,
+    #[token("never")]
+    KwNever,
+
+
 
     #[regex(r"\r?\n")]
     #[regfmt("\\n")]
@@ -225,6 +244,7 @@ declare_tokens! {
 
     #[regex(r"/\*([^/*]*)\*/", |lex: &mut logos::Lexer<'_, Token>| -> String { unescape_comment(&lex.slice()[2..lex.slice().len()-2]) })]
     #[regfmt("comment")]
+
     CommentMultiLine(String),
 }
 
@@ -239,6 +259,7 @@ impl fmt::Display for Token {
     ) -> fmt::Result {
         use Token::*;
         match self {
+            Amp => write!(f, "&"),
             DoubleColon => write!(f, "::"),
             LBrace => write!(f, "{{"),
             RBrace => write!(f, "}}"),
@@ -273,9 +294,14 @@ impl fmt::Display for Token {
             KwU16 => write!(f, "u16"),
             KwU32 => write!(f, "u32"),
             KwU64 => write!(f, "u64"),
+            KwUsize => write!(f, "usize"),
             KwF16 => write!(f, "f16"),
             KwF32 => write!(f, "f32"),
             KwF64 => write!(f, "f64"),
+            KwComplex => write!(f, "complex"),
+            KwBinary => write!(f, "binary"),
+            KwDateTime => write!(f, "datetime"),
+            KwNever => write!(f, "never"),
             Newline => write!(f, "\n"),
             Ident(s) => write!(f, "{}", s),
             Number(n) => write!(f, "{}", n),
@@ -343,6 +369,7 @@ fn unescape_comment(src: &str) -> String {
 
 #[macro_export]
 macro_rules! Token {
+    [&] => { $crate::tokens::tokens::AmpToken };
     [::] => { $crate::tokens::tokens::DoubleColonToken };
     [;] => { $crate::tokens::tokens::SemiToken };
     [:] => { $crate::tokens::tokens::ColonToken };
@@ -374,6 +401,8 @@ macro_rules! Token {
     [f16] => { $crate::tokens::tokens::KwF16Token };
     [f32] => { $crate::tokens::tokens::KwF32Token };
     [f64] => { $crate::tokens::tokens::KwF64Token };
+    [complex] => { $crate::tokens::tokens::KwComplexToken };
+    [never] => { $crate::tokens::tokens::KwNever };
     [newline] => { $crate::tokens::tokens::NewlineToken };
     [ident] => { $crate::tokens::tokens::IdentToken };
     [number] => { $crate::tokens::tokens::NumberToken };

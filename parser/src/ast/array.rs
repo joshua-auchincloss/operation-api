@@ -3,8 +3,7 @@ use crate::{
     ast::ty::Type,
     defs::Spanned,
     tokens::{
-        Bracket, ImplDiagnostic, MutTokenStream, Parse, Peek, SpannedToken, ToTokens, Token,
-        bracket, tokens,
+        Bracket, ImplDiagnostic, MutTokenStream, Parse, Peek, ToTokens, Token, bracket, tokens,
     },
 };
 
@@ -33,13 +32,16 @@ impl ImplDiagnostic for Array {
 
 impl Parse for Array {
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
+        tracing::trace!(cursor=%stream.cursor(), "parsing array");
         let ty = Box::new(stream.parse()?);
         let mut inner;
         let bracket = bracket!(inner in stream);
         Ok(if inner.peek::<Token![number]>() {
+            tracing::trace!("parsing sized array");
             let size = inner.parse()?;
             Self::Sized { ty, bracket, size }
         } else {
+            tracing::trace!("parsing unsized array");
             Self::Unsized { ty, bracket }
         })
     }

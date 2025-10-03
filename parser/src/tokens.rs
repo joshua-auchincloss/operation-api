@@ -1,4 +1,4 @@
-use crate::defs::{Spanned, span::Span};
+use crate::defs::Spanned;
 pub use crate::tokens::{ast::*, error::*, stream::*, tokens::*};
 
 pub trait ImplDiagnostic {
@@ -8,7 +8,6 @@ pub trait ImplDiagnostic {
 pub mod error;
 
 pub mod tokens;
-pub use tokens::*;
 
 pub type SpannedToken = Spanned<Token>;
 
@@ -20,6 +19,7 @@ pub type AstResult<T, E = LexingError> = std::result::Result<T, E>;
 
 #[cfg(test)]
 mod tests {
+    use crate::defs::span::Span;
     use std::marker::PhantomData;
 
     use serde::Serialize;
@@ -126,15 +126,15 @@ mod tests {
             assert!(matches!(kinds[0], Token::KwStruct));
             assert!(matches!(kinds[1], Token::Ident(msg) if msg == "msg_with_union_default"));
             assert!(matches!(kinds[2], Token::LBrace));
-            assert!(matches!(kinds[3], Token::Ident(a) if a == "a"));
-            assert!(matches!(kinds[4], Token::Colon));
-            assert!(matches!(kinds[5], Token::Ident(t) if t == "cunion_1"));
-            assert!(matches!(kinds[6], Token::Comma));
-            assert!(matches!(kinds[7], Token::Ident(b) if b == "b"));
-            assert!(matches!(kinds[8], Token::Colon));
-            assert!(matches!(kinds[9], Token::KwI32));
-            assert!(matches!(kinds[10], Token::Comma));
-            assert!(matches!(kinds[11], Token::RBrace));
+            assert!(matches!(kinds[4], Token::Ident(a) if a == "a"));
+            assert!(matches!(kinds[5], Token::Colon));
+            assert!(matches!(kinds[6], Token::Ident(t) if t == "cunion_1"));
+            assert!(matches!(kinds[7], Token::Comma));
+            assert!(matches!(kinds[9], Token::Ident(b) if b == "b"));
+            assert!(matches!(kinds[10], Token::Colon));
+            assert!(matches!(kinds[11], Token::KwI32));
+            assert!(matches!(kinds[12], Token::Comma));
+            assert!(matches!(kinds[14], Token::RBrace));
         }; "parses struct"
     )]
     fn keyword_then_ident<F: Fn(Vec<&Token>)>(
@@ -169,7 +169,7 @@ mod tests {
         |mut ts: TokenStream| {
             let _: Spanned<KwNamespaceToken> = ts.parse().unwrap();
             ts.parse::<IdentToken>().unwrap_err()
-        }, "expected identifier, found 'i32'", Span::new(10, 13);
+        }, "expected identifier, found i32", Span::new(10, 13);
         "expectation error: namespace followed by keyword"
     )]
     fn test_incremental_and_error_cases(

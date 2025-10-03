@@ -1,16 +1,16 @@
 use crate::{
     SpannedToken, Token, bail_unchecked,
     defs::Spanned,
-    tokens::{self, Bracket, Paren, Parse, Peek, Token, brace, bracket, paren},
+    tokens::{self, Bracket, Paren, Parse, Peek, bracket, paren},
 };
 
 pub struct Meta<Value: Parse> {
-    open: SpannedToken![#],
-    inner: Option<Token![!]>,
-    bracket: Bracket,
-    name: SpannedToken![ident],
-    paren: Paren,
-    value: Spanned<Value>,
+    pub open: SpannedToken![#],
+    pub inner: Option<Token![!]>,
+    pub bracket: Bracket,
+    pub name: SpannedToken![ident],
+    pub paren: Paren,
+    pub value: Spanned<Value>,
 }
 
 impl<Value: Parse + Peek> tokens::Peek for Meta<Value> {
@@ -68,7 +68,7 @@ pub enum ItemMetaItem {
 }
 
 pub struct ItemMeta {
-    meta: Vec<ItemMetaItem>,
+    pub meta: Vec<ItemMetaItem>,
 }
 
 impl Parse for ItemMeta {

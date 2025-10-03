@@ -1,10 +1,6 @@
 use crate::defs::*;
 
-use std::fmt::Display; // Display used for formatting idents
-
-use pest::iterators::Pairs;
-
-use crate::parser::Rule;
+use std::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Ident(String);
@@ -94,29 +90,6 @@ impl Ident {
                 .collect::<Vec<_>>()
                 .join("::"),
         )
-    }
-}
-
-impl FromInner for Ident {
-    fn from_inner(pairs: Pairs<crate::parser::Rule>) -> crate::Result<Self> {
-        for pair in pairs {
-            if matches!(pair.as_rule(), Rule::ident | Rule::name) {
-                return Ok(Self(pair.as_str().into()));
-            }
-        }
-
-        Err(crate::Error::def::<Self>(Rule::ident))
-    }
-}
-
-impl FromPairSpan for Ident {
-    fn from_pair_span(pair: pest::iterators::Pair<'_, Rule>) -> crate::Result<Spanned<Self>> {
-        let span = pair.as_span();
-        let start = span.start();
-        let end = span.end();
-        let value = Ident::from_inner(Pairs::single(pair))
-            .map_err(crate::Error::then_with_span(start, end))?;
-        Ok(Spanned::new(start, end, value))
     }
 }
 

@@ -1,12 +1,12 @@
 use crate::{
     ast::{comment::CommentStream, ty::Type},
-    tokens::{LexingError, TokenStream},
+    tokens::{self, Token},
 };
 
 use crate::{
     SpannedToken, Token,
     defs::Spanned,
-    tokens::{Brace, ImplDiagnostic, Parse, Peek, Repeated, SpannedToken, brace},
+    tokens::{Brace, ImplDiagnostic, Parse, Peek, Repeated, brace},
 };
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -18,6 +18,20 @@ pub enum Sep {
         q: SpannedToken![?],
         sep: SpannedToken![:],
     },
+}
+
+impl tokens::ToTokens for Sep {
+    fn tokens(&self) -> tokens::MutTokenStream {
+        let mut tt = tokens::MutTokenStream::new();
+
+        if matches!(self, Self::Optional { .. }) {
+            tt.push(<Token![?]>::new().token());
+        }
+
+        tt.push(<Token![:]>::new().token());
+
+        tt
+    }
 }
 
 impl Parse for Sep {
@@ -49,6 +63,17 @@ pub struct Arg {
     pub typ: Type,
 }
 
+impl tokens::ToTokens for Arg {
+    fn tokens(&self) -> tokens::MutTokenStream {
+        let mut tt = tokens::MutTokenStream::new();
+        self.comments.write(&mut tt);
+        self.name.write(&mut tt);
+        self.sep.write(&mut tt);
+        self.typ.write(&mut tt);
+        tt
+    }
+}
+
 impl ImplDiagnostic for Arg {
     fn fmt() -> &'static str {
         "foo?: i32"
@@ -67,7 +92,7 @@ impl Parse for Arg {
 }
 
 impl Peek for Arg {
-    fn is(token: &crate::tokens::tokens::SpannedToken) -> bool {
+    fn is(token: &crate::tokens::tokens::Token) -> bool {
         <Token![ident]>::is(token)
     }
 }
@@ -91,6 +116,24 @@ impl Parse for Struct {
     }
 }
 
+impl tokens::Peek for Struct {
+    fn is(token: &Token) -> bool {
+        <Token![struct]>::is(token)
+    }
+}
+
+impl tokens::ToTokens for Struct {
+    fn tokens(&self) -> tokens::MutTokenStream {
+        let mut tt = tokens::MutTokenStream::new();
+        self.kw.write(&mut tt);
+        self.name.write(&mut tt);
+        tt.push(tokens::LBraceToken::new().token());
+        self.args.write(&mut tt);
+        tt.push(tokens::RBraceToken::new().token());
+        tt
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::tokens::{ToTokens, tokenize};
@@ -107,6 +150,8 @@ mod test {
     ) {
         let mut stream = tokenize(src).unwrap();
         let parsed = Struct::parse(&mut stream).expect("Should parse struct");
+
+        let tok = parsed.tokens();
 
         assert_eq!(parsed.name.borrow_string(), expected_name);
 

@@ -1,10 +1,10 @@
-use crate::tokens::{Brace, LexingError, TokenStream, tokenize};
+use crate::tokens::Brace;
 
 use crate::{
     SpannedToken, Token,
     ast::comment::CommentStream,
     defs::Spanned,
-    tokens::{ImplDiagnostic, Parse, Peek, Repeated, SpannedToken, brace},
+    tokens::{ImplDiagnostic, Parse, Peek, Repeated, brace},
 };
 
 pub struct EnumValue<Value: Parse> {
@@ -13,7 +13,7 @@ pub struct EnumValue<Value: Parse> {
 }
 
 impl<Value: Parse> Peek for EnumValue<Value> {
-    fn is(token: &crate::tokens::tokens::SpannedToken) -> bool {
+    fn is(token: &crate::tokens::tokens::Token) -> bool {
         <Token![=]>::is(token)
     }
 }
@@ -34,7 +34,7 @@ pub struct EnumVariant<Value: Parse> {
 }
 
 impl<Value: Parse + Peek> Peek for EnumVariant<Value> {
-    fn is(token: &crate::tokens::tokens::SpannedToken) -> bool {
+    fn is(token: &crate::tokens::tokens::Token) -> bool {
         <Token![ident]>::is(token)
     }
 }
@@ -56,10 +56,10 @@ impl<Value: Parse + Peek> ImplDiagnostic for EnumVariant<Value> {
 }
 
 pub struct TypedEnum<Value: Parse + Peek> {
-    kw: SpannedToken![enum],
-    name: SpannedToken![ident],
-    brace: Brace,
-    variants: Repeated<EnumVariant<Value>, Token![,]>,
+    pub kw: SpannedToken![enum],
+    pub name: SpannedToken![ident],
+    pub brace: Brace,
+    pub variants: Repeated<EnumVariant<Value>, Token![,]>,
 }
 
 impl<Value: Parse + Peek + ImplDiagnostic> Parse for TypedEnum<Value> {
@@ -80,7 +80,7 @@ pub enum Enum {
 }
 
 impl Peek for Enum {
-    fn is(token: &crate::tokens::tokens::SpannedToken) -> bool {
+    fn is(token: &crate::tokens::tokens::Token) -> bool {
         <Token![enum]>::is(token)
     }
 }
@@ -109,6 +109,8 @@ impl Parse for Enum {
 
 #[cfg(test)]
 mod tests {
+    use crate::tokens::tokenize;
+
     use super::*;
 
     #[test_case::test_case(
