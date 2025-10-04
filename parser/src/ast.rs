@@ -81,7 +81,7 @@ mod test {
 
     use super::*;
 
-    // #[test_case::test_case("samples/array.pld")]
+    #[test_case::test_case("samples/array.pld")]
     fn round_trip(path: &str) {
         let data = std::fs::read_to_string(path).unwrap();
         let ast = AstStream::from_file(path).unwrap();
