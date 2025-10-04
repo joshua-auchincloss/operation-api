@@ -37,6 +37,7 @@ pub type EnumDef = Item<super::enm::Enum>;
 pub type StructDef = Item<super::strct::Struct>;
 pub type TypeDef = Item<super::ty_def::NamedType>;
 pub type ErrorDef = Item<super::err::ErrorType>;
+pub type OperationDef = Item<super::op::Operation>;
 
 pub enum Items {
     Namespace(NamespaceDef),
@@ -46,6 +47,7 @@ pub enum Items {
     Struct(StructDef),
     Type(TypeDef),
     Error(ErrorDef),
+    Operation(OperationDef),
 }
 
 impl Parse for Items {
@@ -102,6 +104,13 @@ impl Parse for Items {
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
+        } else if stream.peek::<ast::op::Operation>() {
+            Self::Operation(OperationDef {
+                comments,
+                meta,
+                def: stream.parse()?,
+                end: stream.parse()?,
+            })
         } else {
             let expect = vec![
                 <Token![namespace]>::fmt(),
@@ -111,6 +120,7 @@ impl Parse for Items {
                 <Token![struct]>::fmt(),
                 <Token![error]>::fmt(),
                 <Token![type]>::fmt(),
+                <Token![operation]>::fmt(),
             ];
             return Err(if let Some(next) = stream.next() {
                 LexingError::expected_oneof(expect, next.value)
@@ -135,6 +145,7 @@ impl Peek for Items {
                 | <Token![struct]>::is(token)
                 | <Token![error]>::is(token)
                 | <Token![type]>::is(token)
+                | <Token![operation]>::is(token)
         } else {
             false
         }
@@ -154,6 +165,7 @@ impl ToTokens for Items {
             Struct(def) => tt.write(def),
             Type(def) => tt.write(def),
             Error(def) => tt.write(def),
+            Operation(def) => tt.write(def),
         }
 
         tt
@@ -162,10 +174,7 @@ impl ToTokens for Items {
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        defs::Spanned,
-        tokens::{Parse, tokenize},
-    };
+    use crate::defs::Spanned;
 
     #[test_case::test_case(
         "
@@ -201,6 +210,21 @@ error test_error {
 namespace test;
 import \"abc.pld\";
 ", 2; "parses import"
+    )]
+    #[test_case::test_case(
+        "
+namespace test;
+
+// an infallible operation
+operation add(a: i32, b: i32) -> i32;
+", 2; "parses 2 arg operation without result type"
+    )]
+    #[test_case::test_case(
+        "
+namespace test;
+
+operation foo() -> i32!;
+", 2; "parses 0 arg operation with result type"
     )]
     fn basic_smoke(
         src: &str,

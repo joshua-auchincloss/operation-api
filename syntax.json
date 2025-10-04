@@ -1,0 +1,56 @@
+{
+  "builtin": [
+    { "description": "a boolean type (true | false)", "token": "bool" },
+    { "description": "a string type", "token": "str" },
+    { "description": "signed 8-bit integer", "token": "i8" },
+    { "description": "signed 16-bit integer", "token": "i16" },
+    { "description": "signed 32-bit integer", "token": "i32" },
+    { "description": "signed 64-bit integer", "token": "i64" },
+    { "description": "unsigned 8-bit integer", "token": "u8" },
+    { "description": "unsigned 16-bit integer", "token": "u16" },
+    { "description": "unsigned 32-bit integer", "token": "u32" },
+    { "description": "unsigned 64-bit integer", "token": "u64" },
+    { "description": "a signed 16-bit floating point number", "token": "f16" },
+    { "description": "a signed 32-bit floating point number", "token": "f32" },
+    { "description": "a signed 64-bit floating point number", "token": "f64" },
+    {
+      "description": "a complex number i with imaginary bits j",
+      "token": "complex"
+    },
+    { "description": "a unit type", "token": "never" }
+  ],
+  "keywords": [
+    {
+      "description": "keyword `namespace`. should precede an identifier.",
+      "token": "namespace"
+    },
+    {
+      "description": "keyword `import`. should precede an import path.",
+      "token": "import"
+    },
+    {
+      "description": "keyword `struct`. used to declare a struct.",
+      "token": "struct"
+    },
+    {
+      "description": "keyword `enum`. used to declare an enumeration.",
+      "token": "enum"
+    },
+    {
+      "description": "keyword `type`. used to declare a type alias.",
+      "token": "type"
+    },
+    {
+      "description": "keyword `oneof`. used to declare a sequence of type variants or named enumeration of types.",
+      "token": "oneof"
+    },
+    {
+      "description": "keyword `error`. used to declare an error type.",
+      "token": "error"
+    },
+    {
+      "description": "keyword `operation`. used to declare an operation.",
+      "token": "operation"
+    }
+  ]
+}

@@ -129,6 +129,10 @@ pub enum Type {
     Union {
         ty: Spanned<Union>,
     },
+    Result {
+        ty: Spanned<Box<Type>>,
+        ex: SpannedToken![!],
+    },
 }
 
 impl Parse for Type {
@@ -220,6 +224,17 @@ impl Parse for Type {
             current = Spanned::new(start, end, Type::Array { ty: array_spanned });
         }
 
+        if stream.peek::<Token![!]>() {
+            let ex = stream.parse()?;
+            current = Spanned::new(
+                start,
+                ex.span.end,
+                Type::Result {
+                    ty: current.map(Box::new),
+                    ex,
+                },
+            )
+        }
         Ok(current.value)
     }
 }
@@ -241,6 +256,11 @@ impl ToTokens for Type {
             Self::OneOf { ty } => ty.tokens(),
             Self::Array { ty } => ty.tokens(),
             Self::Union { ty } => ty.tokens(),
+            Self::Result { ty, ex } => {
+                let mut tt = ty.tokens();
+                tt.extend(ex.tokens());
+                tt
+            },
             Self::Paren { ty, .. } => {
                 let mut tt = MutTokenStream::new();
                 tt.push(Token::LParen);
@@ -268,6 +288,7 @@ mod test {
     #[test_case::test_case("f64")]
     #[test_case::test_case("bool")]
     #[test_case::test_case("str")]
+    #[test_case::test_case("str!"; "builtin result")]
     #[test_case::test_case("i32 []"; "round trip unsized array")]
     #[test_case::test_case("i64 [] []"; "round trip double unsized array")]
     #[test_case::test_case("i32 [10]"; "round trip sized array")]
@@ -281,6 +302,7 @@ mod test {
     #[test_case::test_case("datetime"; "round trip datetime")]
     #[test_case::test_case("never"; "round trip never")]
     #[test_case::test_case("(oneof i32 | f32) []"; "round trip nested oneof array with paren")]
+    #[test_case::test_case("(oneof i32 | f32) [] !"; "round trip nested oneof array with paren result")]
     #[test_case::test_case("oneof my_struct | never"; "round trip ident and never")]
     #[test_case::test_case("my_struct & other_struct"; "basic union")]
     #[test_case::test_case("my_struct & ((other_struct & inner_struct) & next_struct)"; "nested union")]

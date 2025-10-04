@@ -80,9 +80,11 @@ impl<Value: Parse + Peek + ToTokens> ToTokens for Meta<Value> {
 
 pub type IntMeta = Meta<Token![number]>;
 pub type StrMeta = Meta<Token![string]>;
+pub type IdentMeta = Meta<Token![ident]>;
 
 pub enum ItemMetaItem {
     Version(Spanned<IntMeta>),
+    Error(Spanned<IdentMeta>),
 }
 
 pub struct ItemMeta {
@@ -94,25 +96,37 @@ impl Parse for ItemMeta {
         let mut meta = vec![];
         loop {
             if stream.peek::<IntMeta>() {
-                let int_meta: Spanned<IntMeta> = stream.parse()?;
-                match int_meta.name.borrow_string().as_ref() {
-                    "version" => meta.push(ItemMetaItem::Version(int_meta)),
+                let this: Spanned<IntMeta> = stream.parse()?;
+                match this.name.borrow_string().as_ref() {
+                    "version" => meta.push(ItemMetaItem::Version(this)),
                     unknown => {
                         return Err(crate::LexingError::unknown_meta(
                             vec!["version"],
                             unknown.into(),
-                            &int_meta.name.span,
+                            &this.name.span,
                         ));
                     },
                 }
             } else if stream.peek::<StrMeta>() {
-                let str_meta: Spanned<StrMeta> = stream.parse()?;
-                match str_meta.name.borrow_string() {
+                let this: Spanned<StrMeta> = stream.parse()?;
+                match this.name.borrow_string() {
                     unknown => {
                         return Err(crate::LexingError::unknown_meta(
-                            vec!["version"],
+                            vec![],
                             unknown.into(),
-                            &str_meta.name.span,
+                            &this.name.span,
+                        ));
+                    },
+                }
+            } else if stream.peek::<IdentMeta>() {
+                let this: Spanned<IdentMeta> = stream.parse()?;
+                match this.name.borrow_string().as_ref() {
+                    "error" => meta.push(ItemMetaItem::Error(this)),
+                    unknown => {
+                        return Err(crate::LexingError::unknown_meta(
+                            vec!["error"],
+                            unknown.into(),
+                            &this.name.span,
                         ));
                     },
                 }
@@ -130,6 +144,7 @@ impl ToTokens for ItemMetaItem {
         let mut tt = MutTokenStream::new();
         match self {
             ItemMetaItem::Version(m) => tt.write(m),
+            ItemMetaItem::Error(m) => tt.write(m),
         }
         tt
     }

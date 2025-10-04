@@ -466,7 +466,7 @@ mod test {
 
     use crate::{
         defs::Spanned,
-        tokens::{self, AstResult, Repeated, TokenStream, brace, bracket, paren, tokenize},
+        tokens::{self, AstResult, TokenStream, brace, bracket, paren, tokenize},
     };
 
     #[test_case::test_case(

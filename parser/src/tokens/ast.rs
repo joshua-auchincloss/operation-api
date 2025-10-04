@@ -95,6 +95,17 @@ impl<T: Peek + Parse, Sep: Peek + Parse> IntoIterator for Repeated<T, Sep> {
     }
 }
 
+impl<T: Peek + Parse + ImplDiagnostic, Sep: Peek + Parse + Clone + ImplDiagnostic> Peek
+    for Repeated<T, Sep>
+{
+    fn is(token: &Token) -> bool {
+        T::is(token)
+    }
+    fn peek(stream: &TokenStream) -> bool {
+        T::peek(stream)
+    }
+}
+
 impl<T: Peek + Parse + ImplDiagnostic, Sep: Peek + Parse + Clone + ImplDiagnostic> Parse
     for Repeated<T, Sep>
 {
@@ -173,5 +184,15 @@ impl<T: ToTokens> ToTokens for Option<T> {
 impl<T: ToTokens> ToTokens for Box<T> {
     fn tokens(&self) -> super::MutTokenStream {
         self.as_ref().tokens()
+    }
+}
+
+impl<T: ToTokens> ToTokens for Vec<T> {
+    fn tokens(&self) -> super::MutTokenStream {
+        let mut tt = super::MutTokenStream::new();
+        for it in self {
+            tt.write(it);
+        }
+        tt
     }
 }

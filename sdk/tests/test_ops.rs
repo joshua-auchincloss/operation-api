@@ -1,4 +1,4 @@
-use operation_api_sdk::{Enum, Error as DeriveError, Struct, namespace, operation};
+use operation_api_sdk::operation;
 
 use crate::ns::ErrorDesc;
 
@@ -20,6 +20,7 @@ mod ns {
         pub desc: String,
     }
 
+    #[allow(unused)]
     #[derive(DeriveError, serde::Serialize, serde::Deserialize)]
     #[serde(untagged, rename_all = "snake_case")]
     #[fields(version = 1)]
@@ -66,6 +67,7 @@ fn with_lt<'a>(value: &'a str) -> &'a str {
 }
 
 #[operation(version = 1)]
+#[allow(unused)]
 fn with_return() -> Result<(), Error> {
     Ok(())
 }

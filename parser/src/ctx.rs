@@ -1,10 +1,10 @@
-// use std::{
-//     collections::{HashMap, HashSet},
-//     path::{Path, PathBuf},
-//     sync::{RwLock, RwLockReadGuard},
-// };
+use std::{collections::BTreeMap, path::PathBuf};
 
-// use miette::{Context, IntoDiagnostic};
+use crate::ast::{
+    ident::Ident,
+    items::{EnumDef, ErrorDef, ImportDef, NamespaceDef, OneOfDef, StructDef, TypeDef},
+    meta::ItemMeta,
+};
 
 // use crate::{
 //     defs::{
@@ -22,13 +22,13 @@
 //     ) -> Option<PayloadTypesSealed>;
 //     fn get_spanned(
 //         &self,
-//         ident: &crate::defs::Spanned<Ident>,
+//         ident: &Ident>,
 //     ) -> Option<PayloadTypesSealed> {
 //         self.get(&ident.value)
 //     }
 //     fn must_get(
 //         &self,
-//         ident: &crate::defs::Spanned<Ident>,
+//         ident: &Ident>,
 //     ) -> crate::Result<PayloadTypesSealed> {
 //         match self.get_spanned(ident) {
 //             Some(rf) => Ok(rf),
@@ -43,19 +43,63 @@
 //     }
 // }
 
-// #[derive(Debug, bon::Builder, Clone)]
-// pub struct NamespaceCtx {
-//     pub source: PathBuf,
+#[derive(Default)]
+pub struct InnerNamespace {
+    pub inner_meta: Option<ItemMeta>,
 
-//     pub namespace: crate::defs::Spanned<NamespaceSealed>,
+    pub imports: Vec<ImportDef>,
 
-//     pub types: HashMap<Ident, crate::defs::Spanned<TypeDefSealed>>,
+    pub one_ofs: BTreeMap<Ident, OneOfDef>,
 
-//     pub structs: HashMap<Ident, crate::defs::Spanned<StructSealed>>,
+    pub enums: BTreeMap<Ident, EnumDef>,
 
-//     pub enums: HashMap<Ident, crate::defs::Spanned<EnumSealed>>,
+    pub structs: BTreeMap<Ident, StructDef>,
 
-//     pub imports: Vec<crate::defs::Spanned<ImportDef>>,
+    pub types: BTreeMap<Ident, TypeDef>,
+
+    pub errors: BTreeMap<Ident, ErrorDef>,
+}
+
+pub struct NamespaceCtx {
+    pub source: PathBuf,
+
+    pub namespace: NamespaceDef,
+
+    pub inner: InnerNamespace,
+}
+
+// impl NamespaceCtx {
+//     pub fn new(
+//         source: PathBuf,
+//         ast: crate::ast::AstStream,
+//     ) -> crate::Result<Self> {
+//         let mut inner = InnerNamespace::default();
+//         let mut namespace = None;
+
+//         use ast::items::Items::*;
+//         for node in ast {
+//             match node.value {
+//                 Import(def) => {
+//                     inner.imports.push(def);
+//                 },
+//                 Namespace(ns) => {
+//                     if namespace.is_some() {
+//                         return Err(
+//                             crate::Error::NsConflict.with_span(ns.def.span.start, ns.def.span.end)
+//                         );
+//                     }
+//                     namespace = Some(ns);
+//                 },
+//                 Error(e) => {},
+//             }
+//         }
+
+//         Ok(Self {
+//             source,
+//             namespace: namespace.ok_or_else(|| crate::Error::NsNotDeclared)?,
+//             inner,
+//         })
+//     }
 // }
 
 // impl NamespaceCtx {
@@ -148,9 +192,9 @@
 //     fn try_from(value: Payload) -> crate::Result<Self> {
 //         let namespace = Self::builder();
 
-//         let mut types: HashMap<Ident, crate::defs::Spanned<TypeDefSealed>> = HashMap::new();
-//         let mut structs: HashMap<Ident, crate::defs::Spanned<StructSealed>> = HashMap::new();
-//         let mut enums: HashMap<Ident, crate::defs::Spanned<EnumSealed>> = HashMap::new();
+//         let mut types: HashMap<Ident, TypeDefSealed>> = HashMap::new();
+//         let mut structs: HashMap<Ident, StructSealed>> = HashMap::new();
+//         let mut enums: HashMap<Ident, EnumSealed>> = HashMap::new();
 
 //         let mut imports = Vec::new();
 

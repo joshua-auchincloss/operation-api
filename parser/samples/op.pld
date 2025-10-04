@@ -1,0 +1,14 @@
+namespace foo;
+
+#![error(MyError)]
+
+error MyError {
+    Unknown(never),
+    Code(i32)
+}
+
+// foo is fallible
+operation foo() -> i32!;
+
+// an infallible operation
+operation add(a: i32, b: i32) -> i32;

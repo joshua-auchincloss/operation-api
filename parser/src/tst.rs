@@ -13,14 +13,6 @@ pub fn logging() {
     });
 }
 
-#[macro_export]
-macro_rules! assert_matches_debug {
-    ($root: literal, $p: ident) => {
-        let observed = format!("{:#?}", $p);
-        std::fs::write(stringify!($root), &observed).unwrap();
-    };
-}
-
 pub fn round_trip<T: tokens::Parse + ToTokens>(src: &str) -> AstResult<T> {
     logging();
 
@@ -36,6 +28,7 @@ pub fn round_trip<T: tokens::Parse + ToTokens>(src: &str) -> AstResult<T> {
     Ok(t)
 }
 
+#[allow(unused)]
 pub fn basic_smoke<T: tokens::Parse>(src: &str) -> T {
     logging();
 

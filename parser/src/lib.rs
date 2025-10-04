@@ -9,6 +9,7 @@ pub mod ast;
 pub mod ctx;
 pub mod defs;
 pub mod diagnostics;
+pub mod fmt;
 pub mod tokens;
 pub(crate) mod utils;
 
@@ -17,7 +18,7 @@ pub(crate) mod tst;
 
 use std::convert::Infallible;
 
-use crate::{defs::Ident, tokens::LexingError};
+use crate::{ast::ident::Ident, tokens::LexingError};
 use thiserror::Error;
 
 pub use tokens::{ImplDiagnostic, Parse, Peek};
@@ -70,7 +71,7 @@ impl Error {
     ) -> Self {
         Self::IdentConflict { namespace, ident }
     }
-    pub fn conflict_spanned<Ns: Into<Vec<defs::Ident>>, Id: Into<defs::Ident>>(
+    pub fn conflict_spanned<Ns: Into<Vec<Ident>>, Id: Into<Ident>>(
         ns: Ns,
         id: Id,
         start: usize,
@@ -87,7 +88,7 @@ impl Error {
         Self::ResolutionError { ident }
     }
     pub fn resolution_spanned(
-        id: defs::Ident,
+        id: Ident,
         start: usize,
         end: usize,
     ) -> Self {

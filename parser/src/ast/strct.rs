@@ -99,11 +99,8 @@ impl Peek for Arg {
         <Token![ident]>::is(token)
     }
     fn peek(stream: &crate::tokens::TokenStream) -> bool {
-        // Allow any number of leading comments before an argument identifier.
         let mut fork = stream.fork();
-        // consume zero or more comments
         while fork.peek::<CommentAst>() {
-            // ignore errors; if a comment can't parse we break
             if fork.parse::<Spanned<CommentAst>>().is_err() {
                 break;
             }

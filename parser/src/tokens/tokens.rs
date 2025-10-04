@@ -129,6 +129,8 @@ macro_rules! tokens {
 pub(crate) use tokens as declare_tokens;
 
 declare_tokens! {
+    #[token("->")]
+    Return,
     #[token("&")]
     Amp,
     #[token("::")]
@@ -220,7 +222,6 @@ declare_tokens! {
     KwNever,
 
 
-
     #[regex(r"\r?\n")]
     #[regfmt("\\n")]
     Newline,
@@ -303,6 +304,7 @@ impl fmt::Display for Token {
             KwDateTime => write!(f, "datetime"),
             KwNever => write!(f, "never"),
             Newline => write!(f, "\n"),
+            Return => write!(f, "->"),
             Ident(s) => write!(f, "{}", s),
             Number(n) => write!(f, "{}", n),
             String(s) => write!(f, "\"{}\"", s),
@@ -369,6 +371,7 @@ fn unescape_comment(src: &str) -> String {
 
 #[macro_export]
 macro_rules! Token {
+    [->] => { $crate::tokens::tokens::ReturnToken };
     [&] => { $crate::tokens::tokens::AmpToken };
     [::] => { $crate::tokens::tokens::DoubleColonToken };
     [;] => { $crate::tokens::tokens::SemiToken };
@@ -435,3 +438,77 @@ macro_rules! straight_through {
 }
 
 pub(crate) use straight_through;
+
+macro_rules! syntax_desc {
+    (
+        {
+            keywords: [$($kwd:ident = $kdesc: literal), + $(,)?],
+            builtin: [$($t:ident = $bdesc: literal), + $(,)?]
+        }
+    ) => {
+        #[cfg(test)]
+        pub(crate) fn descs() -> serde_json::Value {
+            paste::paste!(
+                serde_json::json!({
+                    "keywords": [
+                        $(
+                            {
+                                "token": format!("{}", Token::[<Kw $kwd:camel>]),
+                                "description": $kdesc
+                            },
+                        )*
+                    ],
+                    "builtin": [
+                        $(
+                            {
+                                "token": format!("{}", Token::[<Kw $t:camel>]),
+                                "description": $bdesc
+                            },
+                        )*
+                    ],
+                })
+            )
+        }
+    };
+}
+
+syntax_desc! {{
+    keywords: [
+        namespace = "keyword `namespace`. should precede an identifier.",
+        import = "keyword `import`. should precede an import path.",
+        struct = "keyword `struct`. used to declare a struct.",
+        enum = "keyword `enum`. used to declare an enumeration.",
+        type = "keyword `type`. used to declare a type alias.",
+        oneof = "keyword `oneof`. used to declare a sequence of type variants or named enumeration of types.",
+        error = "keyword `error`. used to declare an error type.",
+        operation = "keyword `operation`. used to declare an operation."
+    ],
+    builtin: [
+        bool = "a boolean type (true | false)",
+        str = "a string type",
+        i8 = "signed 8-bit integer",
+        i16 = "signed 16-bit integer",
+        i32 = "signed 32-bit integer",
+        i64 = "signed 64-bit integer",
+        u8 = "unsigned 8-bit integer",
+        u16 = "unsigned 16-bit integer",
+        u32 = "unsigned 32-bit integer",
+        u64 = "unsigned 64-bit integer",
+        f16 = "a signed 16-bit floating point number",
+        f32 = "a signed 32-bit floating point number",
+        f64 = "a signed 64-bit floating point number",
+        complex = "a complex number i with imaginary bits j",
+        never = "a unit type",
+    ]
+}}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn emit_syntax() {
+        let desc = super::descs();
+        let out = serde_json::to_string(&desc).unwrap();
+
+        std::fs::write("../syntax.json", out).unwrap()
+    }
+}
