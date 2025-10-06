@@ -35,9 +35,10 @@ impl Peek for Operation {
 }
 
 impl ToTokens for Operation {
-    fn tokens(&self) -> crate::tokens::MutTokenStream {
-        let mut tt = crate::tokens::MutTokenStream::new();
-
+    fn write(
+        &self,
+        tt: &mut crate::tokens::MutTokenStream,
+    ) {
         tt.write(&self.kw);
         tt.write(&self.name);
         tt.write(&tokens::LParenToken::new());
@@ -45,7 +46,5 @@ impl ToTokens for Operation {
         tt.write(&tokens::RParenToken::new());
         tt.write(&self.ret);
         tt.write(&self.return_type);
-
-        tt
     }
 }

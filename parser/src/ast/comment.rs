@@ -10,15 +10,14 @@ pub enum CommentAst {
 }
 
 impl tokens::ToTokens for CommentAst {
-    fn tokens(&self) -> tokens::MutTokenStream {
-        let mut tt = tokens::MutTokenStream::with_capacity(1);
-
+    fn write(
+        &self,
+        tt: &mut tokens::MutTokenStream,
+    ) {
         tt.push(match self {
             Self::SingleLine(cmt) => cmt.token(),
             Self::MultiLine(cmt) => cmt.token(),
         });
-
-        tt
     }
 }
 
@@ -69,12 +68,13 @@ impl CommentStream {
 }
 
 impl tokens::ToTokens for CommentStream {
-    fn tokens(&self) -> tokens::MutTokenStream {
-        let mut tt = tokens::MutTokenStream::new();
+    fn write(
+        &self,
+        tt: &mut tokens::MutTokenStream,
+    ) {
         for c in &self.comments {
-            c.value.write(&mut tt);
+            c.value.write(tt);
         }
-        tt
     }
 }
 

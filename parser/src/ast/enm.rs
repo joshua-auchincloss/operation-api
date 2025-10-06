@@ -28,13 +28,12 @@ impl<Value: Parse> Parse for EnumValue<Value> {
 }
 
 impl<V: Parse + ToTokens> ToTokens for EnumValue<V> {
-    fn tokens(&self) -> MutTokenStream {
-        let mut tt = MutTokenStream::new();
-
+    fn write(
+        &self,
+        tt: &mut MutTokenStream,
+    ) {
         tt.write(&self.eq);
         tt.write(&self.value);
-
-        tt
     }
 }
 
@@ -67,14 +66,13 @@ impl<Value: Parse + Peek> ImplDiagnostic for EnumVariant<Value> {
 }
 
 impl<V: Parse + Peek + ToTokens> ToTokens for EnumVariant<V> {
-    fn tokens(&self) -> MutTokenStream {
-        let mut tt = MutTokenStream::new();
-
+    fn write(
+        &self,
+        tt: &mut MutTokenStream,
+    ) {
         tt.write(&self.comments);
         tt.write(&self.name);
         tt.write(&self.value);
-
-        tt
     }
 }
 
@@ -98,16 +96,15 @@ impl<Value: Parse + Peek + ImplDiagnostic> Parse for TypedEnum<Value> {
 }
 
 impl<V: Parse + Peek + ToTokens> ToTokens for TypedEnum<V> {
-    fn tokens(&self) -> MutTokenStream {
-        let mut tt = MutTokenStream::new();
-
+    fn write(
+        &self,
+        tt: &mut MutTokenStream,
+    ) {
         tt.write(&self.kw);
         tt.write(&self.name);
         tt.write(&tokens::LBraceToken::new());
         tt.write(&self.variants);
         tt.write(&tokens::RBraceToken::new());
-
-        tt
     }
 }
 
@@ -145,21 +142,26 @@ impl Parse for Enum {
 }
 
 impl ToTokens for Enum {
-    fn tokens(&self) -> MutTokenStream {
-        let mut tt = MutTokenStream::new();
-
-        let (kw, name, variants) = match self {
-            Self::Int(i) => (&i.kw, &i.name, i.variants.tokens()),
-            Self::Str(s) => (&s.kw, &s.name, s.variants.tokens()),
-        };
-
-        tt.write(kw);
-        tt.write(name);
-        tt.write(&tokens::LBraceToken::new());
-        tt.extend(variants);
-        tt.write(&tokens::RBraceToken::new());
-
-        tt
+    fn write(
+        &self,
+        tt: &mut MutTokenStream,
+    ) {
+        match self {
+            Self::Int(i) => {
+                tt.write(&i.kw);
+                tt.write(&i.name);
+                tt.write(&tokens::LBraceToken::new());
+                tt.write(&i.variants);
+                tt.write(&tokens::RBraceToken::new());
+            },
+            Self::Str(s) => {
+                tt.write(&s.kw);
+                tt.write(&s.name);
+                tt.write(&tokens::LBraceToken::new());
+                tt.write(&s.variants);
+                tt.write(&tokens::RBraceToken::new());
+            },
+        }
     }
 }
 

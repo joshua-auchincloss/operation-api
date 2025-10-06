@@ -17,17 +17,18 @@ pub enum IdentOrUnion {
 }
 
 impl ToTokens for IdentOrUnion {
-    fn tokens(&self) -> tokens::MutTokenStream {
-        let mut tt = tokens::MutTokenStream::new();
+    fn write(
+        &self,
+        tt: &mut tokens::MutTokenStream,
+    ) {
         match self {
-            Self::Ident(iden) => iden.write(&mut tt),
+            Self::Ident(iden) => iden.write(tt),
             Self::Union { inner, .. } => {
-                LParenToken::new().write(&mut tt);
-                inner.write(&mut tt);
-                RParenToken::new().write(&mut tt);
+                LParenToken::new().write(tt);
+                inner.write(tt);
+                RParenToken::new().write(tt);
             },
         }
-        tt
     }
 }
 
@@ -110,8 +111,11 @@ impl Peek for Union {
 }
 
 impl ToTokens for Union {
-    fn tokens(&self) -> tokens::MutTokenStream {
-        self.types.tokens()
+    fn write(
+        &self,
+        tt: &mut tokens::MutTokenStream,
+    ) {
+        self.types.write(tt)
     }
 }
 

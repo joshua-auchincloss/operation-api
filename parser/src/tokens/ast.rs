@@ -160,39 +160,44 @@ impl<T: Parse + Peek> Parse for Vec<Spanned<T>> {
 impl<T: Peek + Parse + ToTokens, Sep: Peek + Parse + ToTokens> super::ToTokens
     for Repeated<T, Sep>
 {
-    fn tokens(&self) -> super::MutTokenStream {
-        let mut tt = super::MutTokenStream::new();
+    fn write(
+        &self,
+        tt: &mut super::MutTokenStream,
+    ) {
         for v in &self.values {
-            v.value.write(&mut tt);
-            v.sep.write(&mut tt);
+            v.value.write(tt);
+            v.sep.write(tt);
         }
-
-        tt
     }
 }
 
 impl<T: ToTokens> ToTokens for Option<T> {
-    fn tokens(&self) -> super::MutTokenStream {
-        let mut tt = super::MutTokenStream::new();
+    fn write(
+        &self,
+        tt: &mut super::MutTokenStream,
+    ) {
         if let Some(v) = self {
-            v.write(&mut tt);
+            v.write(tt);
         }
-        tt
     }
 }
 
 impl<T: ToTokens> ToTokens for Box<T> {
-    fn tokens(&self) -> super::MutTokenStream {
-        self.as_ref().tokens()
+    fn write(
+        &self,
+        tt: &mut super::MutTokenStream,
+    ) {
+        self.as_ref().write(tt)
     }
 }
 
 impl<T: ToTokens> ToTokens for Vec<T> {
-    fn tokens(&self) -> super::MutTokenStream {
-        let mut tt = super::MutTokenStream::new();
+    fn write(
+        &self,
+        tt: &mut super::MutTokenStream,
+    ) {
         for it in self {
             tt.write(it);
         }
-        tt
     }
 }

@@ -24,16 +24,14 @@ pub enum Sep {
 }
 
 impl tokens::ToTokens for Sep {
-    fn tokens(&self) -> tokens::MutTokenStream {
-        let mut tt = tokens::MutTokenStream::new();
-
+    fn write(
+        &self,
+        tt: &mut tokens::MutTokenStream,
+    ) {
         if matches!(self, Self::Optional { .. }) {
             tt.push(<Token![?]>::new().token());
         }
-
         tt.push(<Token![:]>::new().token());
-
-        tt
     }
 }
 
@@ -67,13 +65,14 @@ pub struct Arg {
 }
 
 impl tokens::ToTokens for Arg {
-    fn tokens(&self) -> tokens::MutTokenStream {
-        let mut tt = tokens::MutTokenStream::new();
-        self.comments.write(&mut tt);
-        self.name.write(&mut tt);
-        self.sep.write(&mut tt);
-        self.typ.write(&mut tt);
-        tt
+    fn write(
+        &self,
+        tt: &mut tokens::MutTokenStream,
+    ) {
+        self.comments.write(tt);
+        self.name.write(tt);
+        self.sep.write(tt);
+        self.typ.write(tt);
     }
 }
 
@@ -135,14 +134,15 @@ impl tokens::Peek for Struct {
 }
 
 impl tokens::ToTokens for Struct {
-    fn tokens(&self) -> tokens::MutTokenStream {
-        let mut tt = tokens::MutTokenStream::new();
-        self.kw.write(&mut tt);
-        self.name.write(&mut tt);
+    fn write(
+        &self,
+        tt: &mut tokens::MutTokenStream,
+    ) {
+        self.kw.write(tt);
+        self.name.write(tt);
         tt.push(tokens::LBraceToken::new().token());
-        self.args.write(&mut tt);
+        self.args.write(tt);
         tt.push(tokens::RBraceToken::new().token());
-        tt
     }
 }
 

@@ -1,3 +1,4 @@
 namespace test;
+
 #[version(1)]
-struct foo { has_array?: i32[] };
+struct Foo { has_array?: i32[] };

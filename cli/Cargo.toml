@@ -10,6 +10,7 @@ authors.workspace = true
 name = "define"
 
 [dependencies]
+operation-api-manifests = { path = "../manifests" }
 operation-api-core = { path = "../core", features = [
     "generate",
     "chrono",

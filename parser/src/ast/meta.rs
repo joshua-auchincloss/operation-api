@@ -50,10 +50,7 @@ impl<Value: Parse + Peek> tokens::Parse for Meta<Value> {
             open: stream.parse()?,
             inner: Option::parse(stream)?,
             bracket: bracket!(bracket in stream),
-            name: {
-                println!("{bracket:#?}");
-                bracket.parse()?
-            },
+            name: bracket.parse()?,
             paren: paren!(paren in bracket),
             value: paren.parse()?,
         })
@@ -61,20 +58,18 @@ impl<Value: Parse + Peek> tokens::Parse for Meta<Value> {
 }
 
 impl<Value: Parse + Peek + ToTokens> ToTokens for Meta<Value> {
-    fn tokens(&self) -> MutTokenStream {
-        let mut tt = MutTokenStream::new();
-
+    fn write(
+        &self,
+        tt: &mut MutTokenStream,
+    ) {
         tt.write(&self.open);
         tt.write(&self.inner);
-
         tt.write(&tokens::LBracketToken::new());
         tt.write(&self.name);
         tt.write(&tokens::LParenToken::new());
         tt.write(&self.value);
         tt.write(&tokens::RParenToken::new());
         tt.write(&tokens::RBracketToken::new());
-
-        tt
     }
 }
 
@@ -140,23 +135,25 @@ impl Parse for ItemMeta {
 }
 
 impl ToTokens for ItemMetaItem {
-    fn tokens(&self) -> MutTokenStream {
-        let mut tt = MutTokenStream::new();
+    fn write(
+        &self,
+        tt: &mut MutTokenStream,
+    ) {
         match self {
             ItemMetaItem::Version(m) => tt.write(m),
             ItemMetaItem::Error(m) => tt.write(m),
         }
-        tt
     }
 }
 
 impl ToTokens for ItemMeta {
-    fn tokens(&self) -> MutTokenStream {
-        let mut tt = MutTokenStream::new();
+    fn write(
+        &self,
+        tt: &mut MutTokenStream,
+    ) {
         for m in &self.meta {
             tt.write(m);
         }
-        tt
     }
 }
 

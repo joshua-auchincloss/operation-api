@@ -1,2 +1,16 @@
-[tools]
-"aqua:go-task/task" = "latest"
+[env]
+LOG_LEVEL = "trace"
+
+[tasks]
+prep-docs = [
+    "cargo run --bin emit --features emit",
+    "python scripts/syntax.py",
+    "python scripts/rules.py",
+]
+docs = "mdbook serve docs"
+gen-a = [
+    "cargo run --bin define -- gen -d examples/gen-a",
+    "cargo +nightly fmt",
+]
+config-sync = "sed 's/samples/..\\/samples/g' examples/gen-a/op-gen.toml > samples/config-a/op-gen.toml"
+clean-snap = "rm -rf ./**/tests/snapshots/*.snap"

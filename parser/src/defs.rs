@@ -73,8 +73,11 @@ impl<T> std::ops::Deref for Spanned<T> {
 }
 
 impl<T: ToTokens> ToTokens for Spanned<T> {
-    fn tokens(&self) -> crate::tokens::MutTokenStream {
-        self.value.tokens()
+    fn write(
+        &self,
+        tt: &mut crate::tokens::MutTokenStream,
+    ) {
+        self.value.write(tt)
     }
 }
 

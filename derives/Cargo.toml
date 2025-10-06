@@ -15,6 +15,7 @@ time = ["operation-api-core/time"]
 proc-macro = true
 
 [dependencies]
+operation-api-manifests = { path = "../manifests" }
 operation-api-core = { path = "../core", features = ["generate"] }
 
 glob.workspace = true

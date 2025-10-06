@@ -1,3 +1,4 @@
+pub mod anonymous;
 pub mod array;
 pub mod comment;
 pub mod enm;
@@ -63,15 +64,14 @@ impl IntoIterator for AstStream {
 }
 
 impl crate::tokens::ToTokens for AstStream {
-    fn tokens(&self) -> crate::tokens::MutTokenStream {
-        let mut tt = crate::tokens::MutTokenStream::new();
-
+    fn write(
+        &self,
+        tt: &mut crate::tokens::MutTokenStream,
+    ) {
         for node in &self.nodes {
             tt.write(node);
             tt.write(&tokens::NewlineToken::new());
         }
-
-        tt
     }
 }
 

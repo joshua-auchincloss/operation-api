@@ -10,10 +10,16 @@ authors.workspace = true
 name = "parsing"
 harness = false
 
+[[bin]]
+name = "emit"
+
 [features]
 bench = []
+emit = ["serde_json"]
 
 [dependencies]
+operation-api-manifests = { path = "../manifests" }
+
 serde = { workspace = true, features = ["derive"] }
 paste.workspace = true
 bon.workspace = true
@@ -22,6 +28,13 @@ tracing.workspace = true
 miette = { version = "7", features = ["fancy"] }
 
 logos = "*"
+
+inventory = "0.3"
+dyn-inventory = "0.2.0"
+validator = { workspace = true, features = ["derive"] }
+
+serde_json = { workspace = true, optional = true }
+
 
 [dev-dependencies]
 criterion = { version = "*", features = ["html_reports"] }

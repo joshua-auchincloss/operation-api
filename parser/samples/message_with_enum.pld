@@ -2,11 +2,11 @@ namespace test;
 
 #![version(1)]
 
-enum int_enum {
-    a = 1,
-    b = 42,
+enum IntEnum {
+    Foo = 1,
+    AnswerToLife = 42,
 };
 
-struct test_enum_message {
-    a: int_enum,
+struct TestEnumMessage {
+    a: IntEnum,
 };

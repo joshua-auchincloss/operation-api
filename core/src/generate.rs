@@ -12,13 +12,13 @@ use std::{
     sync::Arc,
 };
 
+use operation_api_manifests::config::NewForConfig;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::Deserialize;
 use validator::Validate;
 
 use crate::{
     Enum, ErrorTy, Ident, Named, OneOf, Operation, Result, Struct,
-    config::NewForConfig,
     context::Context,
     default,
     generate::{

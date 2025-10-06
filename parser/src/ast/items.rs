@@ -153,9 +153,10 @@ impl Peek for Items {
 }
 
 impl ToTokens for Items {
-    fn tokens(&self) -> crate::tokens::MutTokenStream {
-        let mut tt = crate::tokens::MutTokenStream::new();
-
+    fn write(
+        &self,
+        tt: &mut crate::tokens::MutTokenStream,
+    ) {
         use Items::*;
         match self {
             Namespace(def) => tt.write(def),
@@ -167,8 +168,6 @@ impl ToTokens for Items {
             Error(def) => tt.write(def),
             Operation(def) => tt.write(def),
         }
-
-        tt
     }
 }
 

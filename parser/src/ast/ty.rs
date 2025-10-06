@@ -31,14 +31,12 @@ macro_rules! builtin {
             }
 
             impl ToTokens for Builtin {
-                fn tokens(&self) -> MutTokenStream {
-                    let mut tt = MutTokenStream::with_capacity(1);
+                fn write(&self, tt: &mut MutTokenStream) {
                     tt.push(match self {
                         $(
                             Self::$t(t) => t.value.token(),
                         )*
                     });
-                    tt
                 }
             }
 
@@ -249,24 +247,24 @@ impl Peek for Type {
 }
 
 impl ToTokens for Type {
-    fn tokens(&self) -> MutTokenStream {
+    fn write(
+        &self,
+        tt: &mut MutTokenStream,
+    ) {
         match self {
-            Self::Builtin { ty } => ty.tokens(),
-            Self::Ident { to } => to.tokens(),
-            Self::OneOf { ty } => ty.tokens(),
-            Self::Array { ty } => ty.tokens(),
-            Self::Union { ty } => ty.tokens(),
+            Self::Builtin { ty } => ty.write(tt),
+            Self::Ident { to } => to.write(tt),
+            Self::OneOf { ty } => ty.write(tt),
+            Self::Array { ty } => ty.write(tt),
+            Self::Union { ty } => ty.write(tt),
             Self::Result { ty, ex } => {
-                let mut tt = ty.tokens();
-                tt.extend(ex.tokens());
-                tt
+                ty.write(tt);
+                ex.write(tt);
             },
             Self::Paren { ty, .. } => {
-                let mut tt = MutTokenStream::new();
                 tt.push(Token::LParen);
-                ty.write(&mut tt);
+                ty.write(tt);
                 tt.push(Token::RParen);
-                tt
             },
         }
     }

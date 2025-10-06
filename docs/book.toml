@@ -1,0 +1,7 @@
+[book]
+authors = ["joshua-auchincloss <joshua.auchincloss@proton.me>"]
+language = "en"
+src = "src"
+title = "operation api docs"
+
+[preprocessor.alerts]

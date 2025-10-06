@@ -1,10 +1,9 @@
 use crate::{
     SpannedToken, Token,
-    ast::{comment::CommentStream, ty::Type},
+    ast::{anonymous::AnonymousStruct, comment::CommentStream, ty::Type},
     defs::Spanned,
     tokens::{
-        Brace, ImplDiagnostic, LBraceToken, LParenToken, MutTokenStream, Paren, Parse, Peek,
-        RBraceToken, RParenToken, Repeated, ToTokens, brace, paren, tokens,
+        ImplDiagnostic, LParenToken, Paren, Parse, Peek, RParenToken, ToTokens, paren, tokens,
     },
 };
 
@@ -20,8 +19,7 @@ pub enum Variant {
     LocalStruct {
         comments: CommentStream,
         name: SpannedToken![ident],
-        brace: Brace,
-        fields: Spanned<Repeated<super::strct::Arg, Token![,]>>,
+        inner: Spanned<AnonymousStruct>,
     },
 }
 
@@ -41,13 +39,10 @@ impl Parse for Variant {
 
         Ok(if stream.peek::<tokens::LBraceToken>() {
             tracing::trace!("parsing local struct variant");
-            let brace = brace!(inner in stream);
-            let fields = inner.parse()?;
             Self::LocalStruct {
                 comments,
                 name,
-                brace,
-                fields,
+                inner: stream.parse()?,
             }
         } else {
             tracing::trace!("parsing tuple variant");
@@ -70,21 +65,20 @@ impl Peek for Variant {
 }
 
 impl ToTokens for Variant {
-    fn tokens(&self) -> MutTokenStream {
-        let mut tt = MutTokenStream::new();
-
+    fn write(
+        &self,
+        tt: &mut crate::tokens::MutTokenStream,
+    ) {
         match self {
             Self::LocalStruct {
                 comments,
                 name,
-                fields,
+                inner,
                 ..
             } => {
                 tt.write(comments);
                 tt.write(name);
-                tt.write(&LBraceToken::new());
-                tt.write(fields);
-                tt.write(&RBraceToken::new());
+                tt.write(inner);
             },
             Self::Tuple {
                 comments,
@@ -99,8 +93,6 @@ impl ToTokens for Variant {
                 tt.write(&RParenToken::new());
             },
         }
-
-        tt
     }
 }
 
@@ -133,16 +125,12 @@ macro_rules! variadic {
         }
 
         impl crate::tokens::ToTokens for $name {
-            fn tokens(&self) -> crate::tokens::MutTokenStream {
-                let mut tt = crate::tokens::MutTokenStream::new();
-
+            fn write(&self, tt: &mut crate::tokens::MutTokenStream) {
                 tt.write(&self.kw);
                 tt.write(&self.name);
                 tt.write(&crate::tokens::LBraceToken::new());
                 tt.write(&self.variants);
                 tt.write(&crate::tokens::RBraceToken::new());
-
-                tt
             }
         }
 

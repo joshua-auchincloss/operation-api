@@ -1,4 +1,4 @@
-use operation_api_core::config::NewForConfig;
+use operation_api_manifests::NewForConfig;
 
 #[derive(Default, clap::ValueEnum, Clone, Debug)]
 pub enum LogLevel {
@@ -35,21 +35,19 @@ impl Cli {
     pub async fn run(self) -> operation_api_core::Result<()> {
         match self.command {
             Command::Generate(args) => {
-                operation_api_core::generate::Generation::new(
-                    operation_api_core::generate::GenerationConfig::new(
-                        args.config.config_dir.as_deref(),
-                    )?,
-                )?
-                .generate_all(None)
-                .await
+                let gen_conf = operation_api_core::generate::GenerationConfig::new(
+                    args.config.config_dir.as_deref(),
+                )?;
+                operation_api_core::generate::Generation::new(gen_conf)?
+                    .generate_all(None)
+                    .await
             },
             Command::Check(args) => {
                 // we only need to initialize as we perform pre-checks at object creation
-                let _ = operation_api_core::generate::Generation::new(
-                    operation_api_core::generate::GenerationConfig::new(
-                        args.config.config_dir.as_deref(),
-                    )?,
+                let gen_conf = operation_api_core::generate::GenerationConfig::new(
+                    args.config.config_dir.as_deref(),
                 )?;
+                let _ = operation_api_core::generate::Generation::new(gen_conf)?;
                 Ok(())
             },
         }

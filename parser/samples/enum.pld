@@ -2,18 +2,18 @@ namespace test;
 
 #![version(1)]
 
-enum int_enum {
-    a = 1,
-    b = 42,
+enum IntEnum {
+    A = 1,
+    B = 42,
 };
 
-enum str_enum {
-    a = "a_val",
-    b = "b_val",
+enum StrEnum {
+    A = "a_val",
+    B = "b_val",
 };
 
-enum default_enum {
-    a,
-    b,
-    c,
+enum DefaultEnum {
+    A,
+    B,
+    C,
 };

@@ -8,14 +8,16 @@ use std::fmt;
 pub type SpannedToken = Spanned<Token>;
 
 pub trait ToTokens {
-    fn tokens(&self) -> MutTokenStream;
+    fn tokens(&self) -> MutTokenStream {
+        let mut tt = MutTokenStream::new();
+        self.write(&mut tt);
+        tt
+    }
 
     fn write(
         &self,
-        tokens: &mut MutTokenStream,
-    ) {
-        tokens.extend(self.tokens().into_iter());
-    }
+        tt: &mut MutTokenStream,
+    );
 }
 
 macro_rules! tokens {
@@ -56,10 +58,8 @@ macro_rules! tokens {
                 );
 
                 impl super::ToTokens for [<$tok Token>] {
-                    fn tokens(&self) -> super::MutTokenStream {
-                        let mut strm = MutTokenStream::new();
-                        strm.push(self.token());
-                        strm
+                    fn write(&self, tt: &mut super::MutTokenStream) {
+                        tt.push(self.token());
                     }
                 }
 
@@ -404,8 +404,9 @@ macro_rules! Token {
     [f16] => { $crate::tokens::tokens::KwF16Token };
     [f32] => { $crate::tokens::tokens::KwF32Token };
     [f64] => { $crate::tokens::tokens::KwF64Token };
+    [datetime] => { $crate::tokens::tokens::KwDateTimeToken };
     [complex] => { $crate::tokens::tokens::KwComplexToken };
-    [never] => { $crate::tokens::tokens::KwNever };
+    [never] => { $crate::tokens::tokens::KwNeverToken };
     [newline] => { $crate::tokens::tokens::NewlineToken };
     [ident] => { $crate::tokens::tokens::IdentToken };
     [number] => { $crate::tokens::tokens::NumberToken };
@@ -424,14 +425,10 @@ macro_rules! SpannedToken {
 macro_rules! straight_through {
     ($ty: ident $(<$g:ident>)? {$($field: ident), + $(,)?}) => {
         impl$(<$g: crate::Parse + crate::tokens::ToTokens>)? crate::tokens::ToTokens for $ty $(<$g>)? {
-            fn tokens(&self) -> crate::tokens::MutTokenStream {
-                let mut tt = crate::tokens::MutTokenStream::new();
-
+            fn write(&self, tt: &mut crate::tokens::MutTokenStream) {
                 $(
                     tt.write(&self.$field);
                 )*
-
-                tt
             }
         }
     };
@@ -443,10 +440,11 @@ macro_rules! syntax_desc {
     (
         {
             keywords: [$($kwd:ident = $kdesc: literal), + $(,)?],
-            builtin: [$($t:ident = $bdesc: literal), + $(,)?]
+            builtin: [$($t:ident = $bdesc: literal), + $(,)?],
+            tokens: [$($tok:tt = $tdesc: literal), + $(,)?]
         }
     ) => {
-        #[cfg(test)]
+        #[cfg(feature = "emit")]
         pub(crate) fn descs() -> serde_json::Value {
             paste::paste!(
                 serde_json::json!({
@@ -463,6 +461,14 @@ macro_rules! syntax_desc {
                             {
                                 "token": format!("{}", Token::[<Kw $t:camel>]),
                                 "description": $bdesc
+                            },
+                        )*
+                    ],
+                    "tokens": [
+                        $(
+                            {
+                                "token": stringify!($tok),
+                                "description": $tdesc
                             },
                         )*
                     ],
@@ -497,18 +503,55 @@ syntax_desc! {{
         f16 = "a signed 16-bit floating point number",
         f32 = "a signed 32-bit floating point number",
         f64 = "a signed 64-bit floating point number",
-        complex = "a complex number i with imaginary bits j",
-        never = "a unit type",
+        complex = "a complex number with real and imaginary parts.",
+        DateTime = "a [iso 8601](https://en.wikipedia.org/wiki/ISO_8601) compliant datetime providing timezone.",
+        never = "a unit type (0 size)",
+        Binary = "a binary stream. this is distinct from u8[], where we may have language specific types to utilize if you intend to manipulate octal streams."
+    ],
+    tokens: [
+        [] = "brackets are paired between spans. brackets are permitted in array types and meta fields.",
+        {} = "braces are paired between spans. braces are permitted in: named structs, anonymous structs, enums, oneofs, and errors",
+        () = "parentheses are paired between spans. parentheses are permitted in: meta fields, types, operations, and errors",
+        & = "amp tokens are supported in union types to separate type variants.",
+        :: = "scope resolution operators are used to access named declarations of external namespaces, with no whitespace, and no trailing operator.",
+        ; = "semicolons are used to terminate a top-level declaration (item).",
+        : = "colons are used to separate a field from its type in arguments. there should be no proceeding whitespace between the proceeding `ident`, with a following space before the subsequent type.",
+        , = "commas are used to separate fields, enum and error variants, and arguments. trailing commas are permitted.",
+        ? = "used to indicate an optional type.",
+        = = "equals is used to declare a named type, or provide a static value to an enum member.",
+        # = "pound tokens are used in meta. e.g. `#[...]`",
+        ! = "bang tokens are used to set meta as inner meta, or declare a return type may raise an error. e.g. `-> i32!`."
     ]
 }}
 
-#[cfg(test)]
-mod test {
-    #[test]
-    fn emit_syntax() {
-        let desc = super::descs();
-        let out = serde_json::to_string(&desc).unwrap();
+#[cfg(feature = "emit")]
+pub fn emit_syntax(p: impl AsRef<std::path::Path>) {
+    let mut desc = descs();
+    let m = desc.as_object_mut().unwrap();
+    let tt = m
+        .get_mut("tokens")
+        .unwrap()
+        .as_array_mut()
+        .unwrap();
 
-        std::fs::write("../syntax.json", out).unwrap()
-    }
+    tt.push(serde_json::json!({
+        "token": "\\|",
+        "description": "pipe tokens are supported in oneof types to separate type variants."
+    }));
+    tt.push(serde_json::json!({
+        "token": "//",
+        "description": "used to start a single-line comment, terminated by a new line."
+    }));
+    tt.push(serde_json::json!({
+        "token": "/*",
+        "description": "used to start a multi-line comment, terminated by `*/`"
+    }));
+    tt.push(serde_json::json!({
+        "token": "*/",
+        "description": "used to end a multi-line comment"
+    }));
+
+    let out = serde_json::to_string(&desc).unwrap();
+
+    std::fs::write(p, out).unwrap()
 }

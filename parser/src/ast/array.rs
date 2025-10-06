@@ -58,21 +58,22 @@ impl Peek for Array {
 }
 
 impl ToTokens for Array {
-    fn tokens(&self) -> MutTokenStream {
-        let mut tt = MutTokenStream::new();
+    fn write(
+        &self,
+        tt: &mut MutTokenStream,
+    ) {
         match self {
             Self::Unsized { ty, .. } => {
-                ty.write(&mut tt);
+                ty.write(tt);
                 tt.push(Token::LBracket);
                 tt.push(Token::RBracket);
             },
             Self::Sized { ty, size, .. } => {
-                ty.write(&mut tt);
+                ty.write(tt);
                 tt.push(Token::LBracket);
-                size.write(&mut tt);
+                size.write(tt);
                 tt.push(Token::RBracket);
             },
         }
-        tt
     }
 }

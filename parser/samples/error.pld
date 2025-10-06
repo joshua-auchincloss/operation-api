@@ -3,7 +3,7 @@ namespace test;
 #![version(1)]
 
 enum ErrorCode {
-    internal_error
+    InternalError
 };
 
 struct ErrorDesc {
@@ -12,8 +12,8 @@ struct ErrorDesc {
 };
 
 error ServerError {
-    known(ErrorDesc),
-    unknown {
+    Known(ErrorDesc),
+    Unknown {
         desc: str
     }
 }

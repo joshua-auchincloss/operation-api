@@ -8,12 +8,12 @@ import "some_import.pld";
 
 
 // single line comment on type
-type abc = oneof str | null;
+type Abc = oneof str | null;
 
 /*
 	some multiline comment.
 */
-struct test_message {
+struct TestComplexMessage {
 	// Field comment
 	a:  i32,
 	/*
@@ -24,6 +24,6 @@ struct test_message {
 	d?: bool,
 	e?: str,
 	f:  oneof str | null,
-	g:  abc,
-	h:  test::abc,
+	g:  Abc,
+	h:  test::Abc,
 };

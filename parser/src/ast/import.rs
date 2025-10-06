@@ -18,13 +18,12 @@ impl Parse for Import {
 }
 
 impl ToTokens for Import {
-    fn tokens(&self) -> crate::tokens::MutTokenStream {
-        let mut tt = crate::tokens::MutTokenStream::with_capacity(2);
-
+    fn write(
+        &self,
+        tt: &mut crate::tokens::MutTokenStream,
+    ) {
         tt.push(self.kw.token());
         tt.push(self.path.token());
-
-        tt
     }
 }
 

@@ -13,6 +13,8 @@ time = ["dep:time"]
 python = ["dep:pyo3"]
 
 [dependencies]
+operation-api-manifests = { path = "../manifests" }
+
 pyo3 = { workspace = true, optional = true }
 
 dyn-inventory = { workspace = true }

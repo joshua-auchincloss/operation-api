@@ -1,6 +1,5 @@
 #![allow(clippy::iter_kv_map)]
 
-pub mod config;
 pub mod context;
 
 pub mod checks;
@@ -76,6 +75,9 @@ pub enum Error {
 
     #[error("{0}")]
     Validations(#[from] validator::ValidationErrors),
+
+    #[error("{0}")]
+    Manifests(#[from] operation_api_manifests::Error),
 }
 
 impl Error {

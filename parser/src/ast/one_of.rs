@@ -2,7 +2,7 @@ use crate::{
     SpannedToken, Token,
     ast::ty::Type,
     defs::Spanned,
-    tokens::{ImplDiagnostic, MutTokenStream, Parse, Peek, Repeated, ToTokens, tokens},
+    tokens::{ImplDiagnostic, Parse, Peek, Repeated, ToTokens, tokens},
 };
 
 // something like: oneof a | b | i32[] | (str | bool)[][]
@@ -14,16 +14,17 @@ pub struct AnonymousOneOf {
 }
 
 impl ToTokens for AnonymousOneOf {
-    fn tokens(&self) -> crate::tokens::MutTokenStream {
-        let mut tt = MutTokenStream::new();
+    fn write(
+        &self,
+        tt: &mut crate::tokens::MutTokenStream,
+    ) {
         tt.push(self.kw.token());
         for item in &self.variants.value.values {
-            item.value.write(&mut tt);
+            item.value.write(tt);
             if let Some(sep) = &item.sep {
-                sep.write(&mut tt);
+                sep.write(tt);
             }
         }
-        tt
     }
 }
 

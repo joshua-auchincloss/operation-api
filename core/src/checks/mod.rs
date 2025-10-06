@@ -1,11 +1,7 @@
-// use std::{
-//     // marker::PhantomData,
-//     // sync::{Arc, LazyLock},
-// };
+use operation_api_manifests::rules::*;
+use serde::Deserialize;
 
-use std::collections::BTreeMap;
-
-use crate::{OneOf, Struct, Type, config::NewForConfig};
+use crate::{OneOf, Struct, Type};
 
 pub mod self_ref;
 
@@ -32,58 +28,14 @@ pub trait Check: Send + Sync {
     }
 }
 
-#[derive(PartialEq, serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialOrd, Ord)]
+#[derive(Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum RuleGroup {
     Form,
 }
 
-#[derive(PartialEq, PartialOrd, serde::Serialize, serde::Deserialize, Default, Clone, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum RuleLevel {
-    Silent,
-    Info,
-    #[default]
-    Warn,
-    Error,
-}
-
-#[derive(PartialEq, PartialOrd, serde::Serialize, serde::Deserialize, Default, Clone, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum Fix {
-    Skip,
-    #[default]
-    Unsafe,
-    Safe,
-}
-
-impl Rule {
-    pub fn with(
-        &mut self,
-        overrides: &RuleOverrides,
-    ) {
-        if let Some(level) = &overrides.level {
-            self.level = level.clone();
-        }
-        if let Some(fix) = &overrides.fix {
-            self.fix = fix.clone();
-        }
-    }
-}
-
-#[derive(serde::Deserialize, Debug)]
-pub struct RuleOverrides {
-    level: Option<RuleLevel>,
-    fix: Option<Fix>,
-}
-
-#[derive(serde::Deserialize, validator::Validate)]
-pub struct RuleConfig {
-    overrides: BTreeMap<RuleGroup, BTreeMap<String, RuleOverrides>>,
-}
-
-impl NewForConfig for RuleConfig {
-    const NAME: &'static str = "op-check";
+operation_api_manifests::rule_config! {
+    "op-check" for RuleGroup
 }
 
 dyn_inventory::dyn_inventory! {
@@ -102,6 +54,22 @@ dyn_inventory::dyn_inventory! {
 pub struct RuleRegistry {
     collector: RuleCollector,
     config: RuleConfig,
+}
+
+impl WithRule for Rule {
+    fn with_fix(
+        &mut self,
+        fix: Fix,
+    ) {
+        self.fix = fix;
+    }
+
+    fn with_level(
+        &mut self,
+        level: RuleLevel,
+    ) {
+        self.level = level;
+    }
 }
 
 impl RuleRegistry {
@@ -170,9 +138,7 @@ mod test {
         name: &'static str,
         f: F,
     ) {
-        let registry = super::RuleRegistry::new(RuleConfig {
-            overrides: Default::default(),
-        });
+        let registry = super::RuleRegistry::new(RuleConfig::default());
 
         for plugin in registry.collector.plugins {
             if plugin.name == name {

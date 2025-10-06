@@ -1,9 +1,9 @@
 namespace test;
 
 
-type cunion_1 = oneof str | i32;
+type UnionA = oneof str | i32;
 
 #[version(1)]
-struct msg_with_union_default {
-    a: cunion_1,
+struct MsgWithOneOfAlias {
+    a: UnionA,
 };

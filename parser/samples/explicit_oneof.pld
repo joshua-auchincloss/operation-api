@@ -2,9 +2,9 @@ namespace test;
 
 #![version(1)]
 
-oneof complex_oneof {
-    a(i32),
-    b {
+oneof ComplexOneOf {
+    FormA(i32),
+    FormB{
         desc: string
     }
 };
