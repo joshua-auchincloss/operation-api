@@ -1,5 +1,5 @@
 use crate::defs::Spanned;
-pub use crate::tokens::{ast::*, error::*, stream::*, tokens::*};
+pub use crate::tokens::{ast::*, error::*, stream::*, toks::*};
 
 pub trait ImplDiagnostic {
     fn fmt() -> &'static str;
@@ -7,7 +7,7 @@ pub trait ImplDiagnostic {
 
 pub mod error;
 
-pub mod tokens;
+pub mod toks;
 
 pub type SpannedToken = Spanned<Token>;
 
@@ -200,7 +200,7 @@ mod tests {
         // comments
         ", 
         serde_json::json!({"span":{"end":65,"start":0},"value":[{"span":{"end":11,"start":0},"value":["multiple"]},{"span":{"end":29,"start":11},"value":["single"]},{"span":{"end":45,"start":29},"value":["line"]},{"span":{"end":65,"start":45},"value":["comments"]}]}),
-        PhantomData::<tokens::CommentSingleLineToken>;
+        PhantomData::<toks::CommentSingleLineToken>;
         "parses single line comments over new lines"
     )]
     #[test_case::test_case(
@@ -210,7 +210,7 @@ mod tests {
             next comment value
         */", 
         serde_json::json!({"span":{"end":94,"start":0},"value":[{"span":{"end":49,"start":0},"value":["the inner comment value"]},{"span":{"end":94,"start":50},"value":["next comment value"]}]}),
-        PhantomData::<tokens::CommentMultiLineToken>;
+        PhantomData::<toks::CommentMultiLineToken>;
         "parses comments over new lines"
     )]
     fn test_to_vec<T>(
@@ -239,7 +239,7 @@ mod tests {
             c
         ", 
         serde_json::json!({"span":{"end":44,"start":0},"value":{"values":[{"sep":{"span":{"end":15,"start":14},"value":null},"value":{"span":{"end":14,"start":0},"value":["a"]}},{"sep":{"span":{"end":30,"start":29},"value":null},"value":{"span":{"end":29,"start":15},"value":["b"]}},{"sep":null,"value":{"span":{"end":44,"start":30},"value":["c"]}}]}}), 
-        PhantomData::<(tokens::IdentToken, tokens::CommaToken)>;
+        PhantomData::<(toks::IdentToken, toks::CommaToken)>;
         "repeated idents with new lines"
     )]
     fn test_repeated<T, Sep>(

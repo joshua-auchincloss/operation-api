@@ -96,8 +96,8 @@ impl RuleCollector {
     #[cfg(feature = "emit")]
     pub fn emit_rules(
         &self,
-        path: impl AsRef<Path>,
-    ) -> () {
+        path: impl AsRef<std::path::Path>,
+    ) {
         let mut meta = vec![];
         for plugin in &self.plugins {
             meta.push(plugin.meta.clone());
@@ -209,12 +209,12 @@ pub(crate) fn build_pairs_for<Open: Peek, Close: Peek>(
     let mut pairs: Vec<Option<usize>> = vec![None; tokens.len()];
 
     for (i, t) in tokens.iter().enumerate() {
-        if Open::is(&t) {
+        if Open::is(t) {
             open_stack.push(i)
-        } else {
-            if let Some(o) = open_stack.pop() {
-                pairs[o] = Some(i);
-            }
+        } else if Close::is(t)
+            && let Some(o) = open_stack.pop()
+        {
+            pairs[o] = Some(i);
         }
     }
 

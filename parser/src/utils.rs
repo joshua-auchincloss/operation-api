@@ -1,17 +1,20 @@
-// #[allow(dead_code)]
-// pub fn insert_unique_ident_or_err_spanned<V>(
-//     ns: Vec<Ident>,
-//     tbl: &mut HashMap<Ident, V>,
-//     def: Ident,
-//     value: V,
-//     start: usize,
-//     end: usize,
-// ) -> crate::Result<()> {
-//     match tbl.insert(def.clone(), value) {
-//         Some(..) => Err(crate::Error::conflict(ns, def).with_span(start, end)),
-//         None => Ok(()),
-//     }
-// }
+use std::collections::BTreeMap;
+
+use crate::SpannedToken;
+
+#[allow(unused)]
+pub fn insert_unique_ident<V>(
+    ns: SpannedToken![ident],
+    tbl: &mut BTreeMap<SpannedToken![ident], V>,
+    def: SpannedToken![ident],
+    tag: &'static str,
+    value: V,
+) -> crate::Result<()> {
+    match tbl.insert(def.clone(), value) {
+        Some(..) => Err(crate::Error::conflict(ns, def, tag)),
+        None => Ok(()),
+    }
+}
 
 // pub fn detect_version_conflict(scope: &[&Version]) -> crate::Result<Option<usize>> {
 //     if scope.is_empty() {

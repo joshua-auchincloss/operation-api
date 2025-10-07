@@ -1,11 +1,7 @@
-/*
-	namespace comments (test)
-*/
-#![version(1)]
-namespace test;
+namespace foo;
 
-use other_ns;
-
+use bar_corp::baz;
+use bar_corp::baz::BazOrString;
 
 // single line comment on type
 type Abc = oneof str | null;
@@ -23,7 +19,7 @@ struct TestComplexMessage {
 	c:  str,
 	d?: bool,
 	e?: str,
-	f:  oneof str | null,
+	f:  BazOrString,
 	g:  Abc,
-	h:  test::Abc,
+	h:  baz::Baz,
 };

@@ -14,6 +14,8 @@
   - [`struct`](./types/struct.md)
   - [`error`](./types/errors.md)
   - [`operation`](./types/operation.md)
+  - [`namespace`](./types/namespace.md)
+  - [`use`](./types/use.md)
 - [Naming](./naming.md)
 - [Linting](./linting.md)
   - [Linting Rules](./linting/rules.md)

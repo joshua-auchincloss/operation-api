@@ -1637,6 +1637,7 @@ dependencies = [
  "serde_json",
  "test-case",
  "thiserror 2.0.16",
+ "toml",
  "validator",
 ]
 

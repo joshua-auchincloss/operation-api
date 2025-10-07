@@ -7,7 +7,12 @@ use std::hint::black_box;
 
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("tokenize test message", |b| {
-        b.iter(|| tokenize(black_box(include_str!("../samples/message_with_enum.pld"))).unwrap())
+        b.iter(|| {
+            tokenize(black_box(include_str!(
+                "../samples/abc-corp/schema/foo/message_with_enum.pld"
+            )))
+            .unwrap()
+        })
     });
 
     for (t, desc) in &[
@@ -39,7 +44,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     ] {
         c.bench_function(&format!("ast parse '{desc}'"), |b| {
             b.iter(|| {
-                let tt = operation_api_parser::ast::AstStream::from_str(black_box(t)).unwrap();
+                let tt = operation_api_parser::ast::AstStream::from_string(black_box(t)).unwrap();
                 std::hint::black_box(tt);
             })
         });

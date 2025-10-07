@@ -3,7 +3,7 @@ use crate::{
     ast::ty::Type,
     defs::Spanned,
     tokens::{
-        Bracket, ImplDiagnostic, MutTokenStream, Parse, Peek, ToTokens, Token, bracket, tokens,
+        Bracket, ImplDiagnostic, MutTokenStream, Parse, Peek, ToTokens, Token, bracket, toks,
     },
 };
 
@@ -53,7 +53,7 @@ impl Peek for Array {
         if fork.parse::<Spanned<Type>>().is_err() {
             return false;
         };
-        fork.peek::<tokens::LBraceToken>()
+        fork.peek::<toks::LBraceToken>()
     }
 }
 

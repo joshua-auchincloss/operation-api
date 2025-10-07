@@ -46,7 +46,7 @@ jobs:
           cargo +nightly fmt --all -- --check
 
   clippy:
-    name: Cargo Fmt
+    name: Cargo Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -56,6 +56,6 @@ jobs:
           components: clippy
 
       - run: rustup component add rustfmt
-      - name: Cargo Check Fmt
+      - name: Cargo Clippy
         run: |
-          cargo clippy --features generate,chrono,time
+          cargo clippy --features generate,chrono,time,emit

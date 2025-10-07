@@ -1,0 +1,5 @@
+namespace test;
+
+struct TestEnumMessage {
+    a: IntEnum,
+};

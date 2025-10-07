@@ -3,13 +3,13 @@ pub mod array;
 pub mod comment;
 pub mod enm;
 pub mod err;
-pub mod ident;
 pub mod import;
 pub mod items;
 pub mod meta;
 pub mod namespace;
 pub mod one_of;
 pub mod op;
+pub mod path;
 pub mod strct;
 pub mod ty;
 pub mod ty_def;
@@ -39,7 +39,7 @@ impl crate::Parse for AstStream {
 }
 
 impl AstStream {
-    pub fn from_str(src: &str) -> AstResult<Self> {
+    pub fn from_string(src: &str) -> AstResult<Self> {
         let mut tt = tokenize(src)?;
         Self::parse(&mut tt)
     }
@@ -47,7 +47,7 @@ impl AstStream {
     pub fn from_file(path: impl AsRef<Path>) -> miette::Result<Self> {
         let data = std::fs::read_to_string(path.as_ref()).into_diagnostic()?;
 
-        Self::from_str(&data).map_err(|lex| {
+        Self::from_string(&data).map_err(|lex| {
             let crate_err: crate::Error = lex.into();
             crate_err.to_report_with(path.as_ref(), &data, None)
         })

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use operation_api_manifests::NewForConfig;
 
 #[derive(Default, clap::ValueEnum, Clone, Debug)]
@@ -50,6 +52,7 @@ impl Cli {
                 let _ = operation_api_core::generate::Generation::new(gen_conf)?;
                 Ok(())
             },
+            Command::Init(args) => Ok(operation_api_manifests::init(args.name, args.dir)?),
         }
     }
 }
@@ -61,6 +64,9 @@ enum Command {
 
     #[clap(alias = "c")]
     Check(CheckArgs),
+
+    #[clap(alias = "i")]
+    Init(InitArgs),
 }
 
 #[derive(clap::Args, Debug, Clone)]
@@ -79,4 +85,12 @@ struct GenArgs {
 struct CheckArgs {
     #[clap(flatten)]
     config: WithConfig,
+}
+
+#[derive(clap::Args, Debug, Clone)]
+struct InitArgs {
+    #[clap(short = 'n', long)]
+    name: String,
+    #[clap(short = 'd', long)]
+    dir: Option<PathBuf>,
 }

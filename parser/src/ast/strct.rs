@@ -94,7 +94,7 @@ impl Parse for Arg {
 }
 
 impl Peek for Arg {
-    fn is(token: &crate::tokens::tokens::Token) -> bool {
+    fn is(token: &crate::tokens::toks::Token) -> bool {
         <Token![ident]>::is(token)
     }
     fn peek(stream: &crate::tokens::TokenStream) -> bool {

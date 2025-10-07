@@ -19,17 +19,16 @@ impl AstFormat for NoTrailingCommaHandle {
     ) -> Vec<Edit> {
         let mut edits = Vec::new();
         for i in 0..toks.len() {
-            if matches!(toks[i].value, Token::Comma) {
-                if let Some(j) = next_non_ws(toks, i + 1) {
-                    if matches!(toks[j].value, Token::RBrace) {
-                        let span = Some(toks[i].span.clone());
-                        edits.push(Edit {
-                            kind: EditKind::Remove { range: i..i + 1 },
-                            message: "remove trailing comma before `}`",
-                            span,
-                        });
-                    }
-                }
+            if matches!(toks[i].value, Token::Comma)
+                && let Some(j) = next_non_ws(toks, i + 1)
+                && matches!(toks[j].value, Token::RBrace)
+            {
+                let span = Some(toks[i].span.clone());
+                edits.push(Edit {
+                    kind: EditKind::Remove { range: i..i + 1 },
+                    message: "remove trailing comma before `}`",
+                    span,
+                });
             }
         }
         edits

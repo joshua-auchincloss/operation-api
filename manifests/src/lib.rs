@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 pub mod config;
 pub mod package;
@@ -19,6 +22,10 @@ pub enum Error {
     ValidationErrors(#[from] ::validator::ValidationErrors),
     #[error("{0}")]
     IoError(#[from] std::io::Error),
+    #[error("{0}")]
+    VersionError(#[from] version::VersionError),
+    #[error("{0}")]
+    SerError(#[from] toml::ser::Error),
 }
 
 impl Error {
@@ -38,3 +45,49 @@ impl Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub fn init(
+    name: String,
+    dir: Option<PathBuf>,
+) -> Result<()> {
+    use validator::Validate;
+
+    let pkg = package::PackageManifest {
+        package: package::PackageMeta {
+            name,
+            description: package::PathOrText::Text("".into()),
+            version: version::Version::parse("0.1.0")?,
+            authors: vec![],
+            homepage: None,
+        },
+        dependencies: BTreeMap::default(),
+    };
+
+    pkg.validate()?;
+
+    let dir = dir.unwrap_or_else(|| PathBuf::from(pkg.package.name.clone()));
+
+    let manifest = dir.join("manifest.toml");
+
+    if !dir.exists() {
+        std::fs::create_dir(&dir)?;
+    }
+
+    let out = toml::to_string(&pkg)?;
+    std::fs::write(manifest, out)?;
+
+    let schema = dir.join("schema/");
+    if !schema.exists() {
+        std::fs::create_dir(dir)?;
+    }
+
+    let lib = schema.join("lib.pld");
+    if !lib.exists() {
+        std::fs::write(
+            lib,
+            format!("namespace {};\n#![version(1)]\n", pkg.package.name),
+        )?;
+    }
+
+    Ok(())
+}

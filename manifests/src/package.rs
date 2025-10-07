@@ -1,11 +1,11 @@
-use std::{path::PathBuf, sync::LazyLock};
+use std::{collections::BTreeMap, path::PathBuf, sync::LazyLock};
+use validator::{Validate, ValidationError};
 
-use validator::ValidationError;
-
+#[allow(clippy::declare_interior_mutable_const)]
 const PACKAGE_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new("[a-z]([a-z0-9\\-]*)[a-z0-9]").expect("package re"));
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
 #[serde(untagged)]
 pub enum PathOrText {
     Path { path: PathBuf },
@@ -21,9 +21,9 @@ impl PathOrText {
     }
 }
 
+#[allow(clippy::borrow_interior_mutable_const)]
 fn validate_name(name: &str) -> Result<(), ValidationError> {
-    const ERR_SPEC: &'static str =
-        "package name must be provided without spaces or special characters";
+    const ERR_SPEC: &str = "package name must be provided without spaces or special characters";
     if let Some(capt) = PACKAGE_RE.find(name) {
         if capt.as_str().len() != name.len() {
             return Err(ValidationError::new("package name").with_message(ERR_SPEC.into()));
@@ -35,7 +35,7 @@ fn validate_name(name: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-#[derive(serde::Deserialize, validator::Validate)]
+#[derive(serde::Deserialize, serde::Serialize, validator::Validate)]
 pub struct Author {
     #[validate(length(min = 1))]
     pub name: String,
@@ -43,7 +43,7 @@ pub struct Author {
     pub email: Option<String>,
 }
 
-#[derive(serde::Deserialize, validator::Validate)]
+#[derive(serde::Deserialize, serde::Serialize, validator::Validate)]
 pub struct PackageMeta {
     #[validate(length(min = 2, max = 128), custom(function = validate_name))]
     pub name: String,
@@ -52,17 +52,18 @@ pub struct PackageMeta {
     pub version: super::version::Version,
     pub authors: Vec<Author>,
     #[validate(url)]
-    pub homepage: String,
+    pub homepage: Option<String>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, validator::Validate, serde::Serialize)]
 pub struct PackageManifest {
+    #[validate(nested)]
     pub package: PackageMeta,
 
-    pub dependencies: Vec<Dependency>,
+    pub dependencies: BTreeMap<String, Dependency>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
 #[serde(untagged)]
 pub enum Dependency {
     Git {
@@ -99,7 +100,7 @@ mod test {
             description: super::PathOrText::Text("".into()),
             version: Version::parse(version).unwrap(),
             authors: vec![],
-            homepage: homepage.into(),
+            homepage: Some(homepage.into()),
         };
         p.validate().unwrap();
     }
@@ -123,7 +124,7 @@ mod test {
             description: super::PathOrText::Text("".into()),
             version: Version::parse(version).unwrap(),
             authors: vec![],
-            homepage: homepage.into(),
+            homepage: Some(homepage.into()),
         };
         let err = p.validate().unwrap_err();
         let msg = format!("{}", err);

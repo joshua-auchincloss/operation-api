@@ -1,6 +1,6 @@
 use crate::{
     defs::{Spanned, span::Span},
-    tokens::{ImplDiagnostic, MutTokenStream, error::LexingError},
+    tokens::{AstResult, ImplDiagnostic, MutTokenStream, error::LexingError},
 };
 use logos::Logos;
 use std::fmt;
@@ -26,6 +26,8 @@ macro_rules! tokens {
             $(#[token($met:literal)])*
             $(#[regex($reg:literal $(,$e:expr)?)])*
             $(#[regfmt($fmt:expr)])?
+
+            $(#[derive($($d:path), + $(,)?)])?
             $tok:ident $(($inner:ty))?
         ),+ $(,)?
     ) => {
@@ -48,7 +50,7 @@ macro_rules! tokens {
                 #[doc = concat!(
                     "Represents `", $($met)? $($fmt)?, "` token(s)"
                 )]
-                #[derive(Clone, PartialEq, Debug, serde::Serialize, serde::Deserialize)]
+                #[derive(Clone, PartialEq, Debug, serde::Serialize, serde::Deserialize, $($($d,)*)*)]
                 pub struct [<$tok Token>](
                     $(
                         $inner,
@@ -65,12 +67,14 @@ macro_rules! tokens {
 
                 #[allow(non_snake_case, unused)]
                 impl [<$tok Token>]{
+                    #[allow(clippy::new_without_default)]
                     pub fn new($([<$inner:snake>]: $inner ,)*)-> Self {
                         Self($([<$inner:snake>],)*())
                     }
 
                     pub fn token(&self) -> Token {
-                        Token::$tok$((self.0.clone() as $inner))?
+                        #[allow(unused_parens)]
+                        Token::$tok$(( { let _pd: ::core::marker::PhantomData<$inner> = ::core::marker::PhantomData; self.0.clone() } ))?
                     }
 
                     $(
@@ -128,6 +132,10 @@ macro_rules! tokens {
 
 pub(crate) use tokens as declare_tokens;
 
+// Local alias to allow macros (like paste's :snake) to generate valid identifiers
+// for methods without choking on a type path containing '::'.
+pub type PathInner = crate::ast::path::Path;
+
 declare_tokens! {
     #[token("->")]
     Return,
@@ -166,8 +174,8 @@ declare_tokens! {
 
     #[token("namespace")]
     KwNamespace,
-    #[token("import")]
-    KwImport,
+    #[token("use")]
+    KwUse,
     #[token("struct")]
     KwStruct,
     #[token("enum")]
@@ -220,7 +228,8 @@ declare_tokens! {
     KwBinary,
     #[token("never")]
     KwNever,
-
+    #[token("schema")]
+    KwSchema,
 
     #[regex(r"\r?\n")]
     #[regfmt("\\n")]
@@ -228,7 +237,12 @@ declare_tokens! {
 
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", |lex: &mut logos::Lexer<'_, Token>| -> String { lex.slice().to_string() })]
     #[regfmt("identifier")]
+    #[derive(PartialOrd, Ord, Hash, Eq)]
     Ident(String),
+
+    #[regex(r"(schema|[A-Za-z_][A-Za-z0-9_]*)::[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)?", parse_path)]
+    #[regfmt("path")]
+    Path(PathInner),
 
     #[regex(r"[0-9]+", parse_number)]
     #[regfmt("number")]
@@ -251,6 +265,13 @@ declare_tokens! {
 
 fn parse_number(lex: &mut logos::Lexer<'_, Token>) -> Result<i32, LexingError> {
     Ok(lex.slice().to_string().parse()?)
+}
+
+fn parse_path(lex: &mut logos::Lexer<'_, Token>) -> AstResult<PathInner> {
+    crate::ast::path::Path::parse(lex.slice()).map_err(|err| {
+        let span = lex.span();
+        err.with_span(Span::new(span.start, span.end))
+    })
 }
 
 impl fmt::Display for Token {
@@ -277,7 +298,7 @@ impl fmt::Display for Token {
             Hash => write!(f, "#"),
             Bang => write!(f, "!"),
             KwNamespace => write!(f, "namespace"),
-            KwImport => write!(f, "import"),
+            KwUse => write!(f, "use"),
             KwStruct => write!(f, "struct"),
             KwEnum => write!(f, "enum"),
             KwType => write!(f, "type"),
@@ -303,9 +324,11 @@ impl fmt::Display for Token {
             KwBinary => write!(f, "binary"),
             KwDateTime => write!(f, "datetime"),
             KwNever => write!(f, "never"),
-            Newline => write!(f, "\n"),
+            KwSchema => write!(f, "schema"),
+            Newline => writeln!(f),
             Return => write!(f, "->"),
             Ident(s) => write!(f, "{}", s),
+            Path(p) => write!(f, "{}", p),
             Number(n) => write!(f, "{}", n),
             String(s) => write!(f, "\"{}\"", s),
             CommentSingleLine(s) => write!(f, "// {}", s),
@@ -371,48 +394,50 @@ fn unescape_comment(src: &str) -> String {
 
 #[macro_export]
 macro_rules! Token {
-    [->] => { $crate::tokens::tokens::ReturnToken };
-    [&] => { $crate::tokens::tokens::AmpToken };
-    [::] => { $crate::tokens::tokens::DoubleColonToken };
-    [;] => { $crate::tokens::tokens::SemiToken };
-    [:] => { $crate::tokens::tokens::ColonToken };
-    [,] => { $crate::tokens::tokens::CommaToken };
-    [?] => { $crate::tokens::tokens::QMarkToken };
-    [=] => { $crate::tokens::tokens::EqToken };
-    [|] => { $crate::tokens::tokens::PipeToken };
-    [#] => { $crate::tokens::tokens::HashToken };
-    [!] => { $crate::tokens::tokens::BangToken };
-    [namespace] => { $crate::tokens::tokens::KwNamespaceToken };
-    [import] => { $crate::tokens::tokens::KwImportToken };
-    [struct] => { $crate::tokens::tokens::KwStructToken };
-    [enum] => { $crate::tokens::tokens::KwEnumToken };
-    [type] => { $crate::tokens::tokens::KwTypeToken };
-    [oneof] => { $crate::tokens::tokens::KwOneofToken };
-    [error] => { $crate::tokens::tokens::KwErrorToken };
-    [operation] => { $crate::tokens::tokens::KwOperationToken };
-    [bool] => { $crate::tokens::tokens::KwBoolToken };
-    [null] => { $crate::tokens::tokens::KwNullToken };
-    [str] => { $crate::tokens::tokens::KwStrToken };
-    [i8] => { $crate::tokens::tokens::KwI8Token };
-    [i16] => { $crate::tokens::tokens::KwI16Token };
-    [i32] => { $crate::tokens::tokens::KwI32Token };
-    [i64] => { $crate::tokens::tokens::KwI64Token };
-    [u8] => { $crate::tokens::tokens::KwU8Token };
-    [u16] => { $crate::tokens::tokens::KwU16Token };
-    [u32] => { $crate::tokens::tokens::KwU32Token };
-    [u64] => { $crate::tokens::tokens::KwU64Token };
-    [f16] => { $crate::tokens::tokens::KwF16Token };
-    [f32] => { $crate::tokens::tokens::KwF32Token };
-    [f64] => { $crate::tokens::tokens::KwF64Token };
-    [datetime] => { $crate::tokens::tokens::KwDateTimeToken };
-    [complex] => { $crate::tokens::tokens::KwComplexToken };
-    [never] => { $crate::tokens::tokens::KwNeverToken };
-    [newline] => { $crate::tokens::tokens::NewlineToken };
-    [ident] => { $crate::tokens::tokens::IdentToken };
-    [number] => { $crate::tokens::tokens::NumberToken };
-    [string] => { $crate::tokens::tokens::StringToken };
-    [comment_single_line] => { $crate::tokens::tokens::CommentSingleLineToken };
-    [comment_multi_line] => { $crate::tokens::tokens::CommentMultiLineToken };
+    [->] => { $crate::tokens::toks::ReturnToken };
+    [&] => { $crate::tokens::toks::AmpToken };
+    [::] => { $crate::tokens::toks::DoubleColonToken };
+    [;] => { $crate::tokens::toks::SemiToken };
+    [:] => { $crate::tokens::toks::ColonToken };
+    [,] => { $crate::tokens::toks::CommaToken };
+    [?] => { $crate::tokens::toks::QMarkToken };
+    [=] => { $crate::tokens::toks::EqToken };
+    [|] => { $crate::tokens::toks::PipeToken };
+    [#] => { $crate::tokens::toks::HashToken };
+    [!] => { $crate::tokens::toks::BangToken };
+    [namespace] => { $crate::tokens::toks::KwNamespaceToken };
+    [use] => { $crate::tokens::toks::KwUseToken };
+    [struct] => { $crate::tokens::toks::KwStructToken };
+    [enum] => { $crate::tokens::toks::KwEnumToken };
+    [type] => { $crate::tokens::toks::KwTypeToken };
+    [oneof] => { $crate::tokens::toks::KwOneofToken };
+    [error] => { $crate::tokens::toks::KwErrorToken };
+    [operation] => { $crate::tokens::toks::KwOperationToken };
+    [schema] => { $crate::tokens::toks::KwSchemaToken };
+    [bool] => { $crate::tokens::toks::KwBoolToken };
+    [null] => { $crate::tokens::toks::KwNullToken };
+    [str] => { $crate::tokens::toks::KwStrToken };
+    [i8] => { $crate::tokens::toks::KwI8Token };
+    [i16] => { $crate::tokens::toks::KwI16Token };
+    [i32] => { $crate::tokens::toks::KwI32Token };
+    [i64] => { $crate::tokens::toks::KwI64Token };
+    [u8] => { $crate::tokens::toks::KwU8Token };
+    [u16] => { $crate::tokens::toks::KwU16Token };
+    [u32] => { $crate::tokens::toks::KwU32Token };
+    [u64] => { $crate::tokens::toks::KwU64Token };
+    [f16] => { $crate::tokens::toks::KwF16Token };
+    [f32] => { $crate::tokens::toks::KwF32Token };
+    [f64] => { $crate::tokens::toks::KwF64Token };
+    [datetime] => { $crate::tokens::toks::KwDateTimeToken };
+    [complex] => { $crate::tokens::toks::KwComplexToken };
+    [never] => { $crate::tokens::toks::KwNeverToken };
+    [newline] => { $crate::tokens::toks::NewlineToken };
+    [ident] => { $crate::tokens::toks::IdentToken };
+    [path] => { $crate::tokens::toks::PathToken };
+    [number] => { $crate::tokens::toks::NumberToken };
+    [string] => { $crate::tokens::toks::StringToken };
+    [comment_single_line] => { $crate::tokens::toks::CommentSingleLineToken };
+    [comment_multi_line] => { $crate::tokens::toks::CommentMultiLineToken };
 }
 
 #[macro_export]
@@ -480,8 +505,9 @@ macro_rules! syntax_desc {
 
 syntax_desc! {{
     keywords: [
+        schema = "keyword `schema`. used to reference types within the same package.",
         namespace = "keyword `namespace`. should precede an identifier.",
-        import = "keyword `import`. should precede an import path.",
+        use = "keyword `use`. should precede a namespace to be used.",
         struct = "keyword `struct`. used to declare a struct.",
         enum = "keyword `enum`. used to declare an enumeration.",
         type = "keyword `type`. used to declare a type alias.",
@@ -509,7 +535,7 @@ syntax_desc! {{
         Binary = "a binary stream. this is distinct from u8[], where we may have language specific types to utilize if you intend to manipulate octal streams."
     ],
     tokens: [
-        [] = "brackets are paired between spans. brackets are permitted in array types and meta fields.",
+        [] = "brackets are paired between spans. brackets are permitted in array types, meta fields, and spanned namespace declarations.",
         {} = "braces are paired between spans. braces are permitted in: named structs, anonymous structs, enums, oneofs, and errors",
         () = "parentheses are paired between spans. parentheses are permitted in: meta fields, types, operations, and errors",
         & = "amp tokens are supported in union types to separate type variants.",

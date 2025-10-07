@@ -1,6 +1,4 @@
 // namespace comments (foo)
 namespace foo;
 
-import "test_message.pld";
-
-
+use schema::bar;

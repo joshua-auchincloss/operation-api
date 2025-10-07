@@ -5,7 +5,9 @@ pub use ident::*;
 pub use span::Span;
 
 pub mod span {
-    #[derive(Debug, Clone, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
+    #[derive(
+        Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
+    )]
     pub struct Span {
         pub start: usize,
         pub end: usize,
@@ -29,7 +31,9 @@ pub mod span {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Hash)]
+#[derive(
+    Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
 pub struct Spanned<T> {
     pub span: span::Span,
     pub value: T,
@@ -88,5 +92,14 @@ impl<T: Peek> Peek for Spanned<T> {
 
     fn peek(stream: &crate::tokens::TokenStream) -> bool {
         T::peek(stream)
+    }
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for Spanned<T> {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        self.value.fmt(f)
     }
 }

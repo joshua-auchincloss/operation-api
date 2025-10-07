@@ -1,0 +1,4 @@
+namespace foo;
+
+#![version(1)]
+#![error(schema::errors::ServerError)]

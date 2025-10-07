@@ -104,15 +104,11 @@ impl Parse for ItemMeta {
                 }
             } else if stream.peek::<StrMeta>() {
                 let this: Spanned<StrMeta> = stream.parse()?;
-                match this.name.borrow_string() {
-                    unknown => {
-                        return Err(crate::LexingError::unknown_meta(
-                            vec![],
-                            unknown.into(),
-                            &this.name.span,
-                        ));
-                    },
-                }
+                return Err(crate::LexingError::unknown_meta(
+                    vec![],
+                    this.name.borrow_string().into(),
+                    &this.name.span,
+                ));
             } else if stream.peek::<IdentMeta>() {
                 let this: Spanned<IdentMeta> = stream.parse()?;
                 match this.name.borrow_string().as_ref() {

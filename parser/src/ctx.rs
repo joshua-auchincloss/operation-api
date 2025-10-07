@@ -1,14 +1,16 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
-use crate::ast::{
-    ident::Ident,
-    items::{EnumDef, ErrorDef, ImportDef, NamespaceDef, OneOfDef, StructDef, TypeDef},
-    meta::ItemMeta,
+use crate::{
+    SpannedToken,
+    ast::{
+        items::{EnumDef, ErrorDef, NamespaceDef, OneOfDef, StructDef, TypeDef, UseDef},
+        meta::ItemMeta,
+    },
 };
 
 // use crate::{
 //     defs::{
-//         EnumSealed, Ident, ImportDef, NamespaceSealed, Payload, PayloadTypesSealed, StructSealed,
+//         EnumSealed, SpannedToken![ident], UseDef, NamespaceSealed, Payload, PayloadTypesSealed, StructSealed,
 //         TypeDefSealed,
 //     },
 //     parser::PayloadParser,
@@ -47,17 +49,17 @@ use crate::ast::{
 pub struct InnerNamespace {
     pub inner_meta: Option<ItemMeta>,
 
-    pub imports: Vec<ImportDef>,
+    pub imports: Vec<UseDef>,
 
-    pub one_ofs: BTreeMap<Ident, OneOfDef>,
+    pub one_ofs: BTreeMap<SpannedToken![ident], OneOfDef>,
 
-    pub enums: BTreeMap<Ident, EnumDef>,
+    pub enums: BTreeMap<SpannedToken![ident], EnumDef>,
 
-    pub structs: BTreeMap<Ident, StructDef>,
+    pub structs: BTreeMap<SpannedToken![ident], StructDef>,
 
-    pub types: BTreeMap<Ident, TypeDef>,
+    pub types: BTreeMap<SpannedToken![ident], TypeDef>,
 
-    pub errors: BTreeMap<Ident, ErrorDef>,
+    pub errors: BTreeMap<SpannedToken![ident], ErrorDef>,
 }
 
 pub struct NamespaceCtx {
@@ -76,10 +78,10 @@ pub struct NamespaceCtx {
 //         let mut inner = InnerNamespace::default();
 //         let mut namespace = None;
 
-//         use ast::items::Items::*;
+//         use crate::ast::items::Items::*;
 //         for node in ast {
 //             match node.value {
-//                 Import(def) => {
+//                 Use(def) => {
 //                     inner.imports.push(def);
 //                 },
 //                 Namespace(ns) => {
@@ -91,6 +93,7 @@ pub struct NamespaceCtx {
 //                     namespace = Some(ns);
 //                 },
 //                 Error(e) => {},
+//                 _ => todo!(),
 //             }
 //         }
 
@@ -107,15 +110,15 @@ pub struct NamespaceCtx {
 //         &self,
 //         ns: &Ident,
 //     ) -> bool {
-//         Ident::path_equals(&self.namespace.ident, &ns.qualified_path())
+//         Ident::path_equals(&self.namespace.SpannedToken![ident], &ns.qualified_path())
 //     }
 
 //     fn merge<T>(
 //         ns: &NamespaceSealed,
-//         values: &mut HashMap<Ident, T>,
-//         take_from: HashMap<Ident, T>,
+//         values: &mut HashMap<SpannedToken![ident], T>,
+//         take_from: HashMap<SpannedToken![ident], T>,
 //     ) -> crate::Result<()> {
-//         for (ident, def) in take_from.into_iter() {
+//         for (SpannedToken![ident], def) in take_from.into_iter() {
 //             if values.insert(ident.clone(), def).is_some() {
 //                 return Err(crate::Error::conflict(ns.ident.clone(), ident));
 //             }
@@ -192,9 +195,9 @@ pub struct NamespaceCtx {
 //     fn try_from(value: Payload) -> crate::Result<Self> {
 //         let namespace = Self::builder();
 
-//         let mut types: HashMap<Ident, TypeDefSealed>> = HashMap::new();
-//         let mut structs: HashMap<Ident, StructSealed>> = HashMap::new();
-//         let mut enums: HashMap<Ident, EnumSealed>> = HashMap::new();
+//         let mut types: HashMap<SpannedToken![ident], TypeDefSealed>> = HashMap::new();
+//         let mut structs: HashMap<SpannedToken![ident], StructSealed>> = HashMap::new();
+//         let mut enums: HashMap<SpannedToken![ident], EnumSealed>> = HashMap::new();
 
 //         let mut imports = Vec::new();
 
@@ -247,7 +250,7 @@ pub struct NamespaceCtx {
 //                         enm.span.end,
 //                     )?;
 //                 },
-//                 PayloadTypesSealed::Import(import) => imports.push(import),
+//                 PayloadTypesSealed::Use(import) => imports.push(import),
 //                 PayloadTypesSealed::Namespace(..) => {},
 //             }
 //         }
@@ -351,7 +354,7 @@ pub struct NamespaceCtx {
 //         for ns in sources.iter() {
 //             tracing::debug!("checking namespace: {:#?}", ns.namespace.ident);
 
-//             if !Ident::path_equals(&ns.namespace.ident, &find_ns) {
+//             if !Ident::path_equals(&ns.namespace.SpannedToken![ident], &find_ns) {
 //                 continue;
 //             }
 //             if let Some(ty) = ns.types.get(&obj) {

@@ -1,7 +1,7 @@
 # Tokens
 | Token   | Description                                                                                                                                                                                 |
 |:--------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[]`    | brackets are paired between spans. brackets are permitted in array types and meta fields.                                                                                                   |
+| `[]`    | brackets are paired between spans. brackets are permitted in array types, meta fields, and spanned namespace declarations.                                                                  |
 | `{}`    | braces are paired between spans. braces are permitted in: named structs, anonymous structs, enums, oneofs, and errors                                                                       |
 | `()`    | parentheses are paired between spans. parentheses are permitted in: meta fields, types, operations, and errors                                                                              |
 | `&`     | amp tokens are supported in union types to separate type variants.                                                                                                                          |

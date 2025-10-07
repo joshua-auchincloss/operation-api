@@ -2,7 +2,7 @@ use crate::{
     defs::{Spanned, span::Span},
     tokens::{
         ImplDiagnostic, ToTokens, Token, error::LexingError, stream::TokenStream,
-        tokens::SpannedToken,
+        toks::SpannedToken,
     },
 };
 
@@ -21,7 +21,7 @@ pub trait Peek: Sized {
     }
 }
 
-fn extract_span<'a>(checkpoint: Option<&'a SpannedToken>) -> Option<&'a Span> {
+fn extract_span(checkpoint: Option<&SpannedToken>) -> Option<&Span> {
     if let Some(check) = checkpoint {
         Some(&check.span)
     } else {
@@ -124,7 +124,7 @@ impl<T: Peek + Parse + ImplDiagnostic, Sep: Peek + Parse + Clone + ImplDiagnosti
             value: first,
             sep: sep.clone(),
         });
-        while let Some(..) = sep {
+        while sep.is_some() {
             if !stream.peek::<T>() {
                 break;
             }

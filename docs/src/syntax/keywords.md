@@ -1,8 +1,9 @@
 # Keywords
 | Token       | Description                                                                                 |
 |:------------|:--------------------------------------------------------------------------------------------|
+| `schema`    | keyword `schema`. used to reference types within the same package.                          |
 | `namespace` | keyword `namespace`. should precede an identifier.                                          |
-| `import`    | keyword `import`. should precede an import path.                                            |
+| `use`       | keyword `use`. should precede a namespace to be used.                                       |
 | `struct`    | keyword `struct`. used to declare a struct.                                                 |
 | `enum`      | keyword `enum`. used to declare an enumeration.                                             |
 | `type`      | keyword `type`. used to declare a type alias.                                               |

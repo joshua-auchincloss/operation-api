@@ -1,5 +1,3 @@
 [profile.default]
 test-threads = "num-cpus"
-
-[profile.ci]
 fail-fast = false

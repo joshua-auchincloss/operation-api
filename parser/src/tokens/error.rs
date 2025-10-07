@@ -46,6 +46,9 @@ pub enum LexingError {
         found: String,
     },
 
+    #[error("invalid path: {input}. {reason}")]
+    InvalidPath { input: String, reason: String },
+
     #[error("{source}")]
     Spanned { source: Box<Self>, span: Span },
 }

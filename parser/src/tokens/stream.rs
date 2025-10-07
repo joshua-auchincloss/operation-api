@@ -7,7 +7,7 @@ use crate::{
         AstResult, ImplDiagnostic, NewlineToken, ToTokens,
         ast::{Parse, Peek},
         error::LexingError,
-        tokens::{SpannedToken, Token},
+        toks::{SpannedToken, Token},
     },
 };
 
@@ -122,19 +122,6 @@ impl TokenStream {
         t
     }
 
-    pub fn next(&mut self) -> Option<SpannedToken> {
-        let mut next = self.next_with_whitespace();
-        while let Some(v) = next {
-            if !matches!(v.value, Token::Newline) {
-                return Some(v);
-            } else {
-                tracing::trace!(cursor=%self.cursor, "skipping whitespace");
-                next = self.next_with_whitespace();
-            }
-        }
-        None
-    }
-
     pub fn cursor(&self) -> usize {
         self.cursor
     }
@@ -218,14 +205,12 @@ impl TokenStream {
         while let Some(tok) = self.next() {
             if Open::is(&tok) {
                 depth += 1;
-            } else if Close::is(&tok) {
-                if depth > 0 {
-                    depth -= 1;
-                    if depth == 0 {
-                        // matched close, after we have decremented the depth to 0
-                        end_pos = Some(self.cursor);
-                        break;
-                    }
+            } else if Close::is(&tok) && depth > 0 {
+                depth -= 1;
+                if depth == 0 {
+                    // matched close, after we have decremented the depth to 0
+                    end_pos = Some(self.cursor);
+                    break;
                 }
             }
         }
@@ -257,6 +242,23 @@ impl TokenStream {
     }
 }
 
+impl Iterator for TokenStream {
+    type Item = SpannedToken;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut next = self.next_with_whitespace();
+        while let Some(v) = next {
+            if !matches!(v.value, Token::Newline) {
+                return Some(v);
+            } else {
+                tracing::trace!(cursor=%self.cursor, "skipping whitespace");
+                next = self.next_with_whitespace();
+            }
+        }
+        None
+    }
+}
+
 pub fn tokenize(src: &str) -> Result<TokenStream, LexingError> {
     TokenStream::lex(src)
 }
@@ -282,8 +284,8 @@ macro_rules! paired {
                     $tokens: ident in $input: ident
                 ) => {
                     match $input.extract_inner_tokens::<
-                            $crate::tokens::tokens::[<L $tok:camel Token>],
-                            $crate::tokens::tokens::[<R $tok:camel Token>],
+                            $crate::tokens::toks::[<L $tok:camel Token>],
+                            $crate::tokens::toks::[<R $tok:camel Token>],
                         >() {
                         Ok((token, span)) => {
                             $tokens = token;
@@ -296,8 +298,8 @@ macro_rules! paired {
                     $tokens: ident in $input: ident; $err: expr
                 ) => {
                     match $input.extract_inner_tokens::<
-                            $crate::tokens::tokens::[<L $tok:camel Token>],
-                            $crate::tokens::tokens::[<R $tok:camel Token>],
+                            $crate::tokens::toks::[<L $tok:camel Token>],
+                            $crate::tokens::toks::[<R $tok:camel Token>],
                         >() {
                         Ok((token, span)) => {
                             $tokens = token;
@@ -320,24 +322,6 @@ paired! {
 }
 paired! {
     Paren
-}
-
-fn spanned_value(span: Spanned<Token>) -> Token {
-    span.value
-}
-
-impl IntoIterator for TokenStream {
-    type Item = Token;
-    type IntoIter = <Vec<Token> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.tokens[self.range_start..self.range_end]
-            .iter()
-            .cloned()
-            .map(spanned_value)
-            .collect::<Vec<_>>()
-            .into_iter()
-    }
 }
 
 #[derive(Default, Debug)]

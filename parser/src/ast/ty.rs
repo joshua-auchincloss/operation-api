@@ -12,14 +12,14 @@ macro_rules! builtin {
             #[serde(tag = "type", rename_all = "snake_case")]
             pub enum Builtin {
                 $(
-                    $t(crate::defs::Spanned<crate::tokens::tokens::[<Kw $t Token>]>),
+                    $t(crate::defs::Spanned<crate::tokens::toks::[<Kw $t Token>]>),
                 )*
             }
 
             impl Peek for Builtin {
-                fn is(token: &tokens::Token) -> bool {
+                fn is(token: &toks::Token) -> bool {
                     false  $(
-                       || crate::tokens::tokens::[<Kw $t Token>]::is(token)
+                       || crate::tokens::toks::[<Kw $t Token>]::is(token)
                     )*
                 }
             }
@@ -44,7 +44,7 @@ macro_rules! builtin {
             impl Parse for Builtin {
                 fn parse(stream: &mut TokenStream) -> AstResult<Self> {
                     $(
-                        if stream.peek::<crate::tokens::tokens::[<Kw $t Token>]>() {
+                        if stream.peek::<crate::tokens::toks::[<Kw $t Token>]>() {
                             return Ok(Self::$t(
                                 stream.parse()?
                             ))
@@ -53,7 +53,7 @@ macro_rules! builtin {
 
                     let tys: Vec<_> = vec![
                         $(
-                            crate::tokens::tokens::[<Kw $t Token>]::fmt(),
+                            crate::tokens::toks::[<Kw $t Token>]::fmt(),
                         )*
                     ];
 
@@ -112,7 +112,7 @@ pub enum Type {
         ty: Spanned<Builtin>,
     },
     Ident {
-        to: SpannedToken![ident],
+        to: SpannedToken![path],
     },
     OneOf {
         ty: Spanned<AnonymousOneOf>,
@@ -147,7 +147,7 @@ impl Parse for Type {
             Type::Union {
                 ty: stream.parse()?,
             }
-        } else if stream.peek::<tokens::LParenToken>() {
+        } else if stream.peek::<toks::LParenToken>() {
             tracing::trace!("parsing paren type");
             let mut inner;
             let paren = paren!(inner in stream);
@@ -183,7 +183,7 @@ impl Parse for Type {
 
         // we need to be careful here and manually parse the Array types. this is because if
         // we use Array::parse, we can run into infinite recursion errors as the array parses the inner types
-        while stream.peek::<tokens::LBracketToken>() {
+        while stream.peek::<toks::LBracketToken>() {
             tracing::trace!("parsing trailing array suffix");
             let mut inner_tokens;
             let bracket = bracket!(inner_tokens in stream); // unit ()
@@ -242,7 +242,7 @@ impl Peek for Type {
         stream.peek::<AnonymousOneOf>()
             || stream.peek::<Builtin>()
             || stream.peek::<Token![ident]>()
-            || stream.peek::<tokens::LParenToken>()
+            || stream.peek::<toks::LParenToken>()
     }
 }
 

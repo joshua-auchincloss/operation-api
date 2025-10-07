@@ -3,32 +3,32 @@ use crate::{
     tokens::{Parse, Peek, ToTokens, Token},
 };
 
-pub struct Import {
-    pub kw: SpannedToken![import],
-    pub path: SpannedToken![string],
+pub struct Use {
+    pub kw: SpannedToken![use],
+    pub namespace: SpannedToken![path],
 }
 
-impl Parse for Import {
+impl Parse for Use {
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
         Ok(Self {
             kw: stream.parse()?,
-            path: stream.parse()?,
+            namespace: stream.parse()?,
         })
     }
 }
 
-impl ToTokens for Import {
+impl ToTokens for Use {
     fn write(
         &self,
         tt: &mut crate::tokens::MutTokenStream,
     ) {
         tt.push(self.kw.token());
-        tt.push(self.path.token());
+        tt.push(self.namespace.token());
     }
 }
 
-impl Peek for Import {
+impl Peek for Use {
     fn is(token: &Token) -> bool {
-        <Token![import]>::is(token)
+        <Token![use]>::is(token)
     }
 }

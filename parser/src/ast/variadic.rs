@@ -2,9 +2,7 @@ use crate::{
     SpannedToken, Token,
     ast::{anonymous::AnonymousStruct, comment::CommentStream, ty::Type},
     defs::Spanned,
-    tokens::{
-        ImplDiagnostic, LParenToken, Paren, Parse, Peek, RParenToken, ToTokens, paren, tokens,
-    },
+    tokens::{ImplDiagnostic, LParenToken, Paren, Parse, Peek, RParenToken, ToTokens, paren, toks},
 };
 
 // we either have `a(i32)` or `b { desc: str }`
@@ -37,7 +35,7 @@ impl Parse for Variant {
 
         let mut inner;
 
-        Ok(if stream.peek::<tokens::LBraceToken>() {
+        Ok(if stream.peek::<toks::LBraceToken>() {
             tracing::trace!("parsing local struct variant");
             Self::LocalStruct {
                 comments,
@@ -59,7 +57,7 @@ impl Parse for Variant {
 }
 
 impl Peek for Variant {
-    fn is(token: &tokens::Token) -> bool {
+    fn is(token: &toks::Token) -> bool {
         <Token![ident]>::is(token)
     }
 }
@@ -119,7 +117,7 @@ macro_rules! variadic {
         }
 
         impl crate::tokens::Peek for $name {
-            fn is(token: &crate::tokens::tokens::Token) -> bool {
+            fn is(token: &crate::tokens::toks::Token) -> bool {
                 <$kw>::is(token)
             }
         }

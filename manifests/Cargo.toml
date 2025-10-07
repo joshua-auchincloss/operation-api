@@ -15,6 +15,7 @@ semver = "1"
 regex = "*"
 serde_json.workspace = true
 prettyprint = "*"
+toml = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 test-case.workspace = true

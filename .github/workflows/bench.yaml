@@ -25,24 +25,19 @@ jobs:
         with:
           components: cargo
 
+      - name: Download previous benchmark data
+        uses: actions/cache@v4
+        with:
+          path: ./target/criterion
+          key: benchmark-${{ runner.os }}-${{ github.event.pull_request.number || github.ref }}
+
       - name: Run benchmark
         run: cargo bench | tee output.txt
 
       - name: Download previous benchmark data
         uses: actions/cache@v4
         with:
-          path: ./cache
-          key: ${{ runner.os }}-benchmark
+          path: ./target/criterion
+          key: benchmark-${{ runner.os }}-${{ github.event.pull_request.number || github.ref }}
 
-      - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          tool: "cargo"
-          output-file-path: output.txt
-          external-data-json-path: ./cache/benchmark-data.json
-          fail-on-alert: true
-
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          comment-on-alert: true
-          summary-always: true
-          alert-comment-cc-users: "@joshua-auchincloss"
+      # todo: something with the benchmarks, low priority

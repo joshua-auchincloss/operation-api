@@ -18,37 +18,29 @@ mod anon_struct {
             let mut edits = Vec::new();
             let mut i = 0usize;
             while i < toks.len() {
-                if matches!(toks[i].value, Token::LParen) {
-                    if let Some(lbrace) = next_non_ws(toks, i + 1) {
-                        if matches!(toks[lbrace].value, Token::LBrace) {
-                            if let (Some(rparen), Some(rbrace)) =
-                                (paren_pairs[i], brace_pairs[lbrace])
-                            {
-                                if let Some(after_rbrace) = next_non_ws(toks, rbrace + 1) {
-                                    if after_rbrace == rparen {
-                                        let span = Some(Span::new(
-                                            toks[i].span.start,
-                                            toks[rparen].span.end,
-                                        ));
-                                        edits.push(Edit {
-                                            kind: EditKind::Remove { range: i..i + 1 },
-                                            message: "remove parentheses around anonymous struct",
-                                            span: span.clone(),
-                                        });
-                                        edits.push(Edit {
-                                            kind: EditKind::Remove {
-                                                range: rparen..rparen + 1,
-                                            },
-                                            message: "remove parentheses around anonymous struct",
-                                            span,
-                                        });
-                                        i = rparen + 1;
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                if matches!(toks[i].value, Token::LParen)
+                    && let Some(lbrace) = next_non_ws(toks, i + 1)
+                    && matches!(toks[lbrace].value, Token::LBrace)
+                    && let (Some(rparen), Some(rbrace)) = (paren_pairs[i], brace_pairs[lbrace])
+                    && let Some(after_rbrace) = next_non_ws(toks, rbrace + 1)
+                    && after_rbrace == rparen
+                {
+                    let span = Some(Span::new(toks[i].span.start, toks[rparen].span.end));
+
+                    edits.push(Edit {
+                        kind: EditKind::Remove { range: i..i + 1 },
+                        message: "remove parentheses around anonymous struct",
+                        span: span.clone(),
+                    });
+                    edits.push(Edit {
+                        kind: EditKind::Remove {
+                            range: rparen..rparen + 1,
+                        },
+                        message: "remove parentheses around anonymous struct",
+                        span,
+                    });
+                    i = rparen + 1;
+                    continue;
                 }
                 i += 1;
             }

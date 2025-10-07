@@ -13,7 +13,7 @@ pub struct EnumValue<Value: Parse> {
 }
 
 impl<Value: Parse> Peek for EnumValue<Value> {
-    fn is(token: &crate::tokens::tokens::Token) -> bool {
+    fn is(token: &crate::tokens::toks::Token) -> bool {
         <Token![=]>::is(token)
     }
 }
@@ -44,7 +44,7 @@ pub struct EnumVariant<Value: Parse> {
 }
 
 impl<Value: Parse + Peek> Peek for EnumVariant<Value> {
-    fn is(token: &crate::tokens::tokens::Token) -> bool {
+    fn is(token: &crate::tokens::toks::Token) -> bool {
         <Token![ident]>::is(token)
     }
 }
@@ -114,7 +114,7 @@ pub enum Enum {
 }
 
 impl Peek for Enum {
-    fn is(token: &crate::tokens::tokens::Token) -> bool {
+    fn is(token: &crate::tokens::toks::Token) -> bool {
         <Token![enum]>::is(token)
     }
 }

@@ -31,7 +31,8 @@ straight_through! {
 }
 
 pub type NamespaceDef = Item<super::namespace::Namespace>;
-pub type ImportDef = Item<super::import::Import>;
+pub type SpannedNamespaceDef = Item<super::namespace::SpannedNamespace>;
+pub type UseDef = Item<super::import::Use>;
 pub type OneOfDef = Item<super::one_of::OneOf>;
 pub type EnumDef = Item<super::enm::Enum>;
 pub type StructDef = Item<super::strct::Struct>;
@@ -40,14 +41,15 @@ pub type ErrorDef = Item<super::err::ErrorType>;
 pub type OperationDef = Item<super::op::Operation>;
 
 pub enum Items {
-    Namespace(NamespaceDef),
-    Import(ImportDef),
+    Use(UseDef),
     OneOf(OneOfDef),
     Enum(EnumDef),
     Struct(StructDef),
     Type(TypeDef),
     Error(ErrorDef),
     Operation(OperationDef),
+    Namespace(NamespaceDef),
+    SpannedNamespace(SpannedNamespaceDef),
 }
 
 impl Parse for Items {
@@ -62,8 +64,8 @@ impl Parse for Items {
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
-        } else if stream.peek::<ast::import::Import>() {
-            Self::Import(ImportDef {
+        } else if stream.peek::<ast::import::Use>() {
+            Self::Use(UseDef {
                 comments,
                 meta,
                 def: stream.parse()?,
@@ -111,10 +113,17 @@ impl Parse for Items {
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
+        } else if stream.peek::<ast::namespace::SpannedNamespace>() {
+            Self::SpannedNamespace(SpannedNamespaceDef {
+                comments,
+                meta,
+                def: stream.parse()?,
+                end: stream.parse()?,
+            })
         } else {
             let expect = vec![
                 <Token![namespace]>::fmt(),
-                <Token![import]>::fmt(),
+                <Token![use]>::fmt(),
                 <Token![oneof]>::fmt(),
                 <Token![enum]>::fmt(),
                 <Token![struct]>::fmt(),
@@ -139,7 +148,7 @@ impl Peek for Items {
         if let Some(token) = fork.next() {
             let token = &token.value;
             <Token![namespace]>::is(token)
-                | <Token![import]>::is(token)
+                | <Token![use]>::is(token)
                 | <Token![oneof]>::is(token)
                 | <Token![enum]>::is(token)
                 | <Token![struct]>::is(token)
@@ -159,14 +168,15 @@ impl ToTokens for Items {
     ) {
         use Items::*;
         match self {
-            Namespace(def) => tt.write(def),
-            Import(def) => tt.write(def),
+            Use(def) => tt.write(def),
             OneOf(def) => tt.write(def),
             Enum(def) => tt.write(def),
             Struct(def) => tt.write(def),
             Type(def) => tt.write(def),
             Error(def) => tt.write(def),
             Operation(def) => tt.write(def),
+            Namespace(def) => tt.write(def),
+            SpannedNamespace(def) => tt.write(def),
         }
     }
 }
@@ -207,8 +217,8 @@ error test_error {
     #[test_case::test_case(
         "
 namespace test;
-import \"abc.pld\";
-", 2; "parses import"
+use abc::foo;
+", 2; "parses use"
     )]
     #[test_case::test_case(
         "
@@ -224,6 +234,13 @@ namespace test;
 
 operation foo() -> i32!;
 ", 2; "parses 0 arg operation with result type"
+    )]
+    #[test_case::test_case(
+        "
+namespace test {
+    operation foo() -> i32!;
+};
+", 1; "parses nested namespace"
     )]
     fn basic_smoke(
         src: &str,

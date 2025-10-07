@@ -18,7 +18,7 @@ pub(crate) mod tst;
 
 use std::convert::Infallible;
 
-use crate::{ast::ident::Ident, tokens::LexingError};
+use crate::tokens::LexingError;
 use thiserror::Error;
 
 pub use tokens::{ImplDiagnostic, Parse, Peek};
@@ -31,8 +31,12 @@ pub enum Error {
     #[error("{0}")]
     Infallible(#[from] Infallible),
 
-    #[error("{namespace:#?} has conflicts. {ident} is declared multiple times.")]
-    IdentConflict { namespace: Vec<Ident>, ident: Ident },
+    #[error("{} has conflicts. {tag} {} is declared multiple times.", namespace.borrow_string(), ident.borrow_string())]
+    IdentConflict {
+        namespace: SpannedToken![ident],
+        ident: SpannedToken![ident],
+        tag: &'static str,
+    },
 
     #[error("namespace is not declared")]
     NsNotDeclared,
@@ -40,8 +44,8 @@ pub enum Error {
     #[error("only one namespace may be declared in a payload declaration file.")]
     NsConflict,
 
-    #[error("resolution error. could not resolve {ident}")]
-    ResolutionError { ident: Ident },
+    #[error("resolution error. could not resolve '{}'", ident.borrow_path_inner())]
+    ResolutionError { ident: SpannedToken![path] },
 
     #[error("{inner}")]
     WithSpan {
@@ -66,33 +70,22 @@ pub enum Error {
 
 impl Error {
     pub fn conflict(
-        namespace: Vec<Ident>,
-        ident: Ident,
+        namespace: SpannedToken![ident],
+        ident: SpannedToken![ident],
+        tag: &'static str,
     ) -> Self {
-        Self::IdentConflict { namespace, ident }
-    }
-    pub fn conflict_spanned<Ns: Into<Vec<Ident>>, Id: Into<Ident>>(
-        ns: Ns,
-        id: Id,
-        start: usize,
-        end: usize,
-    ) -> Self {
+        let (start, end) = (ident.span.start, ident.span.end);
         Self::IdentConflict {
-            namespace: ns.into(),
-            ident: id.into(),
+            namespace,
+            ident,
+            tag,
         }
         .with_span(start, end)
     }
 
-    pub fn resolution(ident: Ident) -> Self {
-        Self::ResolutionError { ident }
-    }
-    pub fn resolution_spanned(
-        id: Ident,
-        start: usize,
-        end: usize,
-    ) -> Self {
-        Self::ResolutionError { ident: id }.with_span(start, end)
+    pub fn resolution(ident: SpannedToken![path]) -> Self {
+        let (start, end) = (ident.span.start, ident.span.end);
+        Self::ResolutionError { ident }.with_span(start, end)
     }
 
     pub fn with_span(
@@ -125,11 +118,8 @@ impl Error {
 
         let effective = match (override_span, self) {
             (Some(s), _) => Some(s),
-            (None, Error::AstError(inner)) => {
-                match inner {
-                    LexingError::Spanned { span, .. } => Some((span.start, span.end)),
-                    _ => None,
-                }
+            (None, Error::AstError(LexingError::Spanned { span, .. })) => {
+                Some((span.start, span.end))
             },
             (None, Error::WithSpan { start, end, .. }) => Some((*start, *end)),
             (None, Error::VersionConflict { spans, .. }) if !spans.is_empty() => Some(spans[0]),

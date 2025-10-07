@@ -2,7 +2,7 @@ use crate::{
     SpannedToken, Token,
     ast::ty::Type,
     defs::Spanned,
-    tokens::{ImplDiagnostic, Parse, Peek, Repeated, ToTokens, tokens},
+    tokens::{ImplDiagnostic, Parse, Peek, Repeated, ToTokens, toks},
 };
 
 // something like: oneof a | b | i32[] | (str | bool)[][]
@@ -52,7 +52,7 @@ impl Parse for AnonymousOneOf {
             sep: sep.clone(),
         });
 
-        while let Some(..) = sep {
+        while sep.is_some() {
             if !stream.peek::<Type>() {
                 break;
             }
@@ -83,7 +83,7 @@ impl Parse for AnonymousOneOf {
 }
 
 impl Peek for AnonymousOneOf {
-    fn is(token: &tokens::Token) -> bool {
+    fn is(token: &toks::Token) -> bool {
         <Token![oneof]>::is(token)
     }
 }
