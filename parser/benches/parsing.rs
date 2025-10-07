@@ -28,26 +28,26 @@ fn ast_parse_enum() {
     ast_parse(black_box(BENCH_ENUM))
 }
 
-#[divan::bench(name = "ast parse nested ast enum", args = [
-    BENCH_ENUM,
-    BENCH_STRUCT,
-])]
-fn ast_parse_nested_ast(
-    bencher: divan::Bencher,
-    ast: &str,
-) {
-    let ast = format!(
-        "
-    namespace abc_corp;
+// #[divan::bench(name = "ast parse nested ast enum", args = [
+//     BENCH_ENUM,
+//     BENCH_STRUCT,
+// ])]
+// fn ast_parse_nested_ast(
+//     bencher: divan::Bencher,
+//     ast: &str,
+// ) {
+//     let ast = format!(
+//         "
+//     namespace abc_corp;
 
-    #[version(1)]
-    namespace foo {{
-        {ast}
-    }};
-    "
-    );
-    bencher.bench(move || ast_parse(black_box(&ast)));
-}
+//     #[version(1)]
+//     namespace foo {{
+//         {ast}
+//     }};
+//     "
+//     );
+//     bencher.bench(move || ast_parse(black_box(&ast)));
+// }
 
 #[divan::bench(args = [
     "i32",
