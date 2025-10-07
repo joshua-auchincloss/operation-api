@@ -63,6 +63,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             let tt = tokenize(black_box(t)).unwrap();
             b.iter(|| {
                 let t: Type = Type::parse(&mut std::hint::black_box(tt.clone())).unwrap();
+                std::hint::black_box(t);
             })
         });
     }
