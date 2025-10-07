@@ -47,17 +47,21 @@ macro_rules! shared_peek {
 
 impl TokenStream {
     pub fn lex(source: &str) -> Result<Self, LexingError> {
-        let source_rc: Arc<str> = Arc::from(source);
-        let mut lex = Token::lexer(&source_rc);
-        let mut toks = Vec::new();
+        let source: Arc<str> = Arc::from(source);
+        let mut lex = Token::lexer(&source);
+
+        // pre-allocate based on source size to reduce reallocations
+        let approx = (source.len() / 8).max(256);
+        let mut toks = Vec::with_capacity(approx);
         while let Some(token) = lex.next() {
             let token = token?;
             let span = lex.span();
             toks.push(Spanned::new(span.start, span.end, token));
         }
+
         let range_end = toks.len();
         Ok(Self {
-            source: source_rc,
+            source,
             tokens: Arc::new(toks),
             cursor: 0,
             range_start: 0,
@@ -351,8 +355,7 @@ impl MutTokenStream {
         &mut self,
         i: I,
     ) {
-        self.tokens
-            .append(&mut i.into_iter().collect());
+        self.tokens.extend(i);
     }
 
     pub fn write<T: ToTokens>(
