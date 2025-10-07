@@ -68,6 +68,7 @@ pub enum Error {
     AstError(#[from] tokens::LexingError),
 }
 
+// todo: handle cases of deeply nested spans - where we may have started with a smaller span and then grown the size as we cascade the error
 impl Error {
     pub fn conflict(
         namespace: SpannedToken![ident],
