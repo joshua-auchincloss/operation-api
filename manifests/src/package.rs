@@ -106,8 +106,8 @@ mod test {
     }
 
     #[test_case::test_case("a", "0.1.0", "https://github.com/abc/foo.git", "name: Validation error: length"; "name too short")]
-    #[test_case::test_case("a".repeat(129).as_str(), 
-        "0.1.0", "https://github.com/abc/foo.git", 
+    #[test_case::test_case("a".repeat(129).as_str(),
+        "0.1.0", "https://github.com/abc/foo.git",
         "name: Validation error: length"; "name too long")]
     #[test_case::test_case("abc_types!", "0.1.0", "https://github.com/abc/foo.git", "name: package name must be provided without spaces or special characters"; "invalid character in name")]
     #[test_case::test_case("abc_types", "0.1.0", "not-a-url", "homepage: Validation error: url [{\"value\": String(\"not-a-url\")}]"; "invalid homepage url")]

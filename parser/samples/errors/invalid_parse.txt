@@ -1,8 +1,7 @@
 Error:   × syntax error
    ╭─[samples/errors/invalid.pld:3:1]
- 2 │ 
+ 2 │
  3 │ 123
    · ┬
    · ╰── here
    ╰────
-

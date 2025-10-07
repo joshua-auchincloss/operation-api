@@ -6,7 +6,7 @@ use quote::{ToTokens, quote};
 use syn::{Ident, Lit, LitInt};
 
 use crate::{
-    Contigious, EnumValueType, ErrorTy, Operation, StrOrInt, Struct,
+    Contiguous, EnumValueType, ErrorTy, Operation, StrOrInt, Struct,
     generate::{
         GenOpts, Generate, LanguageTrait, RustConfig, context::WithNsContext, files::WithFlush,
     },
@@ -168,7 +168,7 @@ impl Generate<RustGenState, RustConfig> for RustGenerator {
         let doc_comment = def.meta.doc_comment();
         let version = def.meta.version();
 
-        let inner_ty = def.variants.is_contigious(&def.meta.name)?;
+        let inner_ty = def.variants.is_contiguous(&def.meta.name)?;
         let fields: TokenStream = def
             .variants
             .iter()

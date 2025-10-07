@@ -42,3 +42,4 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 operation-api-testing = { path = "../testing" }
 test-case.workspace = true
 serde_json.workspace = true
+divan.workspace = true

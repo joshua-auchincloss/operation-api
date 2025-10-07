@@ -32,4 +32,4 @@ enum Status {
 >
 > - Variants are separated by commas, trailing comma allowed.
 > - Values can be integers or strings; the enum’s kind is inferred from its variants.
-> - Value types must be contigious across the same enum (i.e. all numbers or all strings).
+> - Value types must be contiguous across the same enum (i.e. all numbers or all strings).

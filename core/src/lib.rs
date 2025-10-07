@@ -67,8 +67,8 @@ pub enum Error {
     #[error("[{src}] {error}")]
     SourceFile { error: Box<Self>, src: String },
 
-    #[error("'{ident}' is not contigious with {desc}")]
-    ContigiousError { ident: Ident, desc: String },
+    #[error("'{ident}' is not contiguous with {desc}")]
+    ContiguousError { ident: Ident, desc: String },
 
     #[error("{0}")]
     Validation(#[from] validator::ValidationError),

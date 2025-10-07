@@ -50,7 +50,7 @@ jobs:
       - name: Cargo Test
         id: cargo_test
         run: |
-          cargo insta test --all-features
+          cargo insta test --features generate,chrono,time,emit
 
       - name: Upload snapshots of failed tests
         if: ${{ failure() && steps.cargo_test.outcome == 'failure' }}

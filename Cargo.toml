@@ -68,3 +68,5 @@ dyn-inventory = "0.2"
 
 pest = "2.8"
 pest_derive = "2.8"
+
+divan = { version = "4.0.2", package = "codspeed-divan-compat" }

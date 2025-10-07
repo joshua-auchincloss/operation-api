@@ -1,6 +1,6 @@
 use crate::{
     SpannedToken, Token,
-    ast::{array::Array, one_of::AnonymousOneOf, union::Union},
+    ast::{anonymous::AnonymousStruct, array::Array, one_of::AnonymousOneOf, union::Union},
     defs::Spanned,
     tokens::*,
 };
@@ -127,6 +127,9 @@ pub enum Type {
     Union {
         ty: Spanned<Union>,
     },
+    Struct {
+        ty: Spanned<AnonymousStruct>,
+    },
     Result {
         ty: Spanned<Box<Type>>,
         ex: SpannedToken![!],
@@ -164,6 +167,11 @@ impl Parse for Type {
             tracing::trace!("parsing ident in type");
             Type::Ident {
                 to: stream.parse()?,
+            }
+        } else if stream.peek::<AnonymousStruct>() {
+            tracing::trace!("parsing struct in type");
+            Type::Struct {
+                ty: stream.parse()?,
             }
         } else {
             let expect = vec![
@@ -240,6 +248,7 @@ impl Parse for Type {
 impl Peek for Type {
     fn peek(stream: &TokenStream) -> bool {
         stream.peek::<AnonymousOneOf>()
+            || stream.peek::<AnonymousStruct>()
             || stream.peek::<Builtin>()
             || stream.peek::<Token![ident]>()
             || stream.peek::<toks::LParenToken>()
@@ -256,6 +265,7 @@ impl ToTokens for Type {
             Self::Ident { to } => to.write(tt),
             Self::OneOf { ty } => ty.write(tt),
             Self::Array { ty } => ty.write(tt),
+            Self::Struct { ty } => ty.write(tt),
             Self::Union { ty } => ty.write(tt),
             Self::Result { ty, ex } => {
                 ty.write(tt);

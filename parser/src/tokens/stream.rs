@@ -496,7 +496,7 @@ mod test {
         let diag = format!("{:?}", as_crate.to_report_with(&p, src, None));
         eprintln!("{diag}");
         for e in expect {
-            assert!(diag.contains(e), "'{}' is in ouputted diagnostics", e)
+            assert!(diag.contains(e), "'{}' is in outputted diagnostics", e)
         }
     }
 }

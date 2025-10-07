@@ -1,0 +1,7 @@
+namespace foo;
+
+#![version(1)]
+
+struct Abc {
+    a: i32
+};

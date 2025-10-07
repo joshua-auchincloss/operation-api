@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use convert_case::Casing;
 
 use crate::{
-    Contigious, Definitions, Enum, ErrorTy, Field, FieldOrRef, Ident, OneOf, Operation, Struct,
+    Contiguous, Definitions, Enum, ErrorTy, Field, FieldOrRef, Ident, OneOf, Operation, Struct,
     Version,
 };
 
@@ -203,9 +203,9 @@ impl Namespace {
         Ok(())
     }
 
-    pub fn ensure_contigiousness(&mut self) -> crate::Result<()> {
+    pub fn ensure_contiguousness(&mut self) -> crate::Result<()> {
         for (ident, desc) in self.enums.iter() {
-            desc.variants.is_contigious(ident)?;
+            desc.variants.is_contiguous(ident)?;
         }
         Ok(())
     }
@@ -213,7 +213,7 @@ impl Namespace {
     pub fn check(&mut self) -> crate::Result<()> {
         self.simplify_types();
         self.resolve_field_types()?;
-        self.ensure_contigiousness()?;
+        self.ensure_contiguousness()?;
         Ok(())
     }
 

@@ -57,8 +57,8 @@ impl<S: Into<usize>> From<S> for Version {
     }
 }
 
-pub trait Contigious<T> {
-    fn is_contigious(
+pub trait Contiguous<T> {
+    fn is_contiguous(
         &self,
         parent: &Ident,
     ) -> crate::Result<T>;
@@ -574,8 +574,8 @@ impl Named<VariantKind> {
     }
 }
 
-impl Contigious<EnumValueType> for Named<VariantKind> {
-    fn is_contigious(
+impl Contiguous<EnumValueType> for Named<VariantKind> {
+    fn is_contiguous(
         &self,
         parent: &Ident,
     ) -> crate::Result<EnumValueType> {
@@ -583,7 +583,7 @@ impl Contigious<EnumValueType> for Named<VariantKind> {
         for (ident, variant) in &self.0 {
             let ty = self.ty_of(variant);
             if outer_ty != ty {
-                return Err(crate::Error::ContigiousError {
+                return Err(crate::Error::ContiguousError {
                     ident: format!("{parent}::{ident}").into(),
                     desc: format!("expected {outer_ty:#?}, received {ty:#?}"),
                 });
