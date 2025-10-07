@@ -26,7 +26,7 @@ jobs:
         with:
           channel: stable
           cache-target: release
-          bins: cargo-codspeed
+          bins: cargo-codspeed@4
 
       - name: Build the benchmark target(s)
         run: cargo codspeed build
