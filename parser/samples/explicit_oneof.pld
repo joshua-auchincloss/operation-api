@@ -1,10 +1,9 @@
+#[version(1)]
 namespace test;
 
-#![version(1)]
-
 oneof ComplexOneOf {
-    FormA(i32),
-    FormB{
-        desc: string
-    }
+	FormA(i32),
+	FormB {
+		desc: string
+	}
 };

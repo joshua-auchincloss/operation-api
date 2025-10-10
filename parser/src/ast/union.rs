@@ -1,15 +1,14 @@
 use crate::{
-    SpannedToken, bail_unchecked,
+    SpannedToken,
+    ast::ty::PathOrIdent,
+    bail_unchecked,
     defs::Spanned,
-    tokens::{
-        self, ImplDiagnostic, LParenToken, Paren, Parse, Peek, RParenToken, Repeated, ToTokens,
-        paren,
-    },
+    tokens::{self, ImplDiagnostic, Paren, Parse, Peek, Repeated, ToTokens, paren},
 };
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum IdentOrUnion {
-    Ident(SpannedToken![ident]),
+    Ident(PathOrIdent),
     Union {
         paren: Paren,
         inner: Spanned<Box<Union>>,
@@ -19,15 +18,11 @@ pub enum IdentOrUnion {
 impl ToTokens for IdentOrUnion {
     fn write(
         &self,
-        tt: &mut tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         match self {
             Self::Ident(iden) => iden.write(tt),
-            Self::Union { inner, .. } => {
-                LParenToken::new().write(tt);
-                inner.write(tt);
-                RParenToken::new().write(tt);
-            },
+            Self::Union { inner, paren } => paren.write_with(tt, |tt| tt.write(inner)),
         }
     }
 }
@@ -57,7 +52,6 @@ impl Parse for IdentOrUnion {
             ) {
                 (first.value.span.start, last.value.span.end)
             } else {
-                // guard anyway
                 (stream.cursor(), stream.cursor())
             };
             return Ok(IdentOrUnion::Union {
@@ -66,7 +60,7 @@ impl Parse for IdentOrUnion {
             });
         }
         if stream.peek::<tokens::IdentToken>() {
-            return Ok(IdentOrUnion::Ident(stream.parse()?));
+            return Ok(IdentOrUnion::Ident(PathOrIdent::parse(stream)?));
         }
         Err(if let Some(next) = stream.peek_unchecked() {
             LexingError::expected_oneof(
@@ -82,7 +76,7 @@ impl Parse for IdentOrUnion {
     }
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Union {
     pub types: Repeated<IdentOrUnion, tokens::AmpToken>,
 }
@@ -113,9 +107,18 @@ impl Peek for Union {
 impl ToTokens for Union {
     fn write(
         &self,
-        tt: &mut tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        self.types.write(tt)
+        for (i, item) in self.types.values.iter().enumerate() {
+            if i > 0 {
+                tt.space();
+            }
+            item.value.write(tt);
+            if let Some(sep) = &item.sep {
+                tt.space();
+                sep.write(tt);
+            }
+        }
     }
 }
 

@@ -3,7 +3,7 @@ use crate::{
     ast::AstStream,
     bail_unchecked,
     defs::Spanned,
-    tokens::{self, Brace, LBraceToken, Parse, Peek, ToTokens, brace, straight_through},
+    tokens::{self, Brace, LBraceToken, Parse, Peek, ToTokens, brace},
 };
 
 pub struct Namespace {
@@ -26,9 +26,14 @@ impl Peek for Namespace {
     }
 }
 
-straight_through! {
-    Namespace {
-        kw, name
+impl ToTokens for Namespace {
+    fn write(
+        &self,
+        tt: &mut crate::fmt::Printer,
+    ) {
+        tt.write(&self.kw);
+        tt.space();
+        tt.write(&self.name);
     }
 }
 
@@ -65,12 +70,14 @@ impl Parse for SpannedNamespace {
 impl ToTokens for SpannedNamespace {
     fn write(
         &self,
-        tt: &mut crate::tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         tt.write(&self.kw);
+        tt.space();
         tt.write(&self.name);
-        tt.write(&tokens::LBraceToken::new());
+        tt.space();
+        tt.open_block();
         tt.write(&self.ast);
-        tt.write(&tokens::RBraceToken::new());
+        tt.close_block();
     }
 }

@@ -5,8 +5,6 @@ use crate::{
     tokens::{ImplDiagnostic, Parse, Peek, Repeated, ToTokens, toks},
 };
 
-// something like: oneof a | b | i32[] | (str | bool)[][]
-// We store variants as a Repeated list separated by '|', preserving separator spans.
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct AnonymousOneOf {
     pub(crate) kw: SpannedToken![oneof],
@@ -16,12 +14,18 @@ pub struct AnonymousOneOf {
 impl ToTokens for AnonymousOneOf {
     fn write(
         &self,
-        tt: &mut crate::tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        tt.push(self.kw.token());
-        for item in &self.variants.value.values {
+        tt.write(&self.kw);
+        tt.space();
+
+        for (i, item) in self.variants.value.values.iter().enumerate() {
+            if i > 0 {
+                tt.space();
+            }
             item.value.write(tt);
             if let Some(sep) = &item.sep {
+                tt.space();
                 sep.write(tt);
             }
         }

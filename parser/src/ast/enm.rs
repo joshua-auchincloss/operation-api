@@ -1,10 +1,13 @@
-use crate::tokens::{self, Brace, ToTokens};
+use crate::{
+    Token,
+    tokens::{Brace, ToTokens, Token},
+};
 
 use crate::{
-    SpannedToken, Token,
+    SpannedToken,
     ast::comment::CommentStream,
     defs::Spanned,
-    tokens::{ImplDiagnostic, MutTokenStream, Parse, Peek, Repeated, brace},
+    tokens::{ImplDiagnostic, Parse, Peek, Repeated, brace},
 };
 
 pub struct EnumValue<Value: Parse> {
@@ -27,10 +30,13 @@ impl<Value: Parse> Parse for EnumValue<Value> {
     }
 }
 
-impl<V: Parse + ToTokens> ToTokens for EnumValue<V> {
+impl<V: Parse> ToTokens for EnumValue<V>
+where
+    Spanned<V>: ToTokens,
+{
     fn write(
         &self,
-        tt: &mut MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         tt.write(&self.eq);
         tt.write(&self.value);
@@ -38,7 +44,7 @@ impl<V: Parse + ToTokens> ToTokens for EnumValue<V> {
 }
 
 pub struct EnumVariant<Value: Parse> {
-    pub comments: CommentStream,
+    pub comments: Spanned<CommentStream>,
     pub name: SpannedToken![ident],
     pub value: Option<EnumValue<Value>>,
 }
@@ -52,7 +58,7 @@ impl<Value: Parse + Peek> Peek for EnumVariant<Value> {
 impl<Value: Parse + Peek> Parse for EnumVariant<Value> {
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
         Ok(Self {
-            comments: CommentStream::parse(stream)?,
+            comments: stream.parse()?,
             name: stream.parse()?,
             value: Option::parse(stream)?,
         })
@@ -65,14 +71,22 @@ impl<Value: Parse + Peek> ImplDiagnostic for EnumVariant<Value> {
     }
 }
 
-impl<V: Parse + Peek + ToTokens> ToTokens for EnumVariant<V> {
+impl<V: Parse + Peek> ToTokens for EnumVariant<V>
+where
+    Spanned<V>: ToTokens,
+{
     fn write(
         &self,
-        tt: &mut MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         tt.write(&self.comments);
         tt.write(&self.name);
-        tt.write(&self.value);
+        if let Some(val) = &self.value {
+            tt.space();
+            tt.write(&val.eq);
+            tt.space();
+            tt.write(&val.value);
+        }
     }
 }
 
@@ -80,7 +94,7 @@ pub struct TypedEnum<Value: Parse + Peek> {
     pub kw: SpannedToken![enum],
     pub name: SpannedToken![ident],
     pub brace: Brace,
-    pub variants: Repeated<EnumVariant<Value>, Token![,]>,
+    pub variants: Spanned<Repeated<EnumVariant<Value>, Token![,]>>,
 }
 
 impl<Value: Parse + Peek + ImplDiagnostic> Parse for TypedEnum<Value> {
@@ -90,21 +104,8 @@ impl<Value: Parse + Peek + ImplDiagnostic> Parse for TypedEnum<Value> {
             kw: stream.parse()?,
             name: stream.parse()?,
             brace: brace!(brace in stream),
-            variants: Repeated::parse(&mut brace)?,
+            variants: brace.parse()?,
         })
-    }
-}
-
-impl<V: Parse + Peek + ToTokens> ToTokens for TypedEnum<V> {
-    fn write(
-        &self,
-        tt: &mut MutTokenStream,
-    ) {
-        tt.write(&self.kw);
-        tt.write(&self.name);
-        tt.write(&tokens::LBraceToken::new());
-        tt.write(&self.variants);
-        tt.write(&tokens::RBraceToken::new());
     }
 }
 
@@ -144,22 +145,38 @@ impl Parse for Enum {
 impl ToTokens for Enum {
     fn write(
         &self,
-        tt: &mut MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         match self {
             Self::Int(i) => {
                 tt.write(&i.kw);
+                tt.space();
                 tt.write(&i.name);
-                tt.write(&tokens::LBraceToken::new());
-                tt.write(&i.variants);
-                tt.write(&tokens::RBraceToken::new());
+                tt.space();
+                tt.open_block();
+                for (idx, item) in i.variants.values.iter().enumerate() {
+                    tt.write(&item.value);
+                    if idx < i.variants.values.len() - 1 {
+                        tt.token(&Token::Comma);
+                        tt.add_newline();
+                    }
+                }
+                tt.close_block();
             },
             Self::Str(s) => {
                 tt.write(&s.kw);
+                tt.space();
                 tt.write(&s.name);
-                tt.write(&tokens::LBraceToken::new());
-                tt.write(&s.variants);
-                tt.write(&tokens::RBraceToken::new());
+                tt.space();
+                tt.open_block();
+                for (idx, item) in s.variants.values.iter().enumerate() {
+                    tt.write(&item.value);
+                    if idx < s.variants.values.len() - 1 {
+                        tt.token(&Token::Comma);
+                        tt.add_newline();
+                    }
+                }
+                tt.close_block();
             },
         }
     }
@@ -172,25 +189,25 @@ mod tests {
     use super::*;
 
     #[test_case::test_case(
-    "enum Foo { Bar, Baz = 2 }", |it| {
+    "enum Foo {\n\tBar,\n\tBaz = 2\n}", |it| {
         assert!(matches!(it, Enum::Int(..)))
     };
     "parses int enum with mixed eq and default values"
 )]
     #[test_case::test_case(
-    "enum Foo { Bar = \"a\", Baz = \"b\" }", |it| {
+    "enum Foo {\n\tBar = \"a\",\n\tBaz = \"b\"\n}", |it| {
         assert!(matches!(it, Enum::Str(..)))
     };
     "parses str enum"
 )]
     #[test_case::test_case(
-    "enum Abc {Bar = 1}", |it| {
+    "enum Abc {\n\tBar = 1\n}", |it| {
         assert!(matches!(it, Enum::Int(..)))
     };
     "parses enum variant with int value"
 )]
     #[test_case::test_case(
-    "enum Abc {Bar = \"a\"}", |it| {
+    "enum Abc {\n\tBar = \"a\"\n}", |it| {
         assert!(matches!(it, Enum::Str(..)))
     };
     "parses enum variant with str value"
@@ -202,6 +219,8 @@ mod tests {
         let mut stream = tokenize(input).unwrap();
         let result = Enum::parse(&mut stream).unwrap();
 
-        matches(result)
+        matches(result);
+
+        crate::tst::round_trip::<Enum>(input).unwrap();
     }
 }

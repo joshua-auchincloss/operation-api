@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     defs::span::Span,
-    tokens::{ImplDiagnostic, Token},
+    tokens::{ImplDiagnostic, Token, TokenStream},
 };
 
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Default)]
@@ -54,6 +54,18 @@ pub enum LexingError {
 }
 
 impl LexingError {
+    pub fn one_of<I: IntoIterator<Item = &'static str>>(
+        stream: &mut TokenStream,
+        expect: I,
+        empty_span: &Span,
+    ) -> Self {
+        if let Some(next) = stream.next() {
+            Self::expected_oneof(expect, next.value).with_span(next.span.clone())
+        } else {
+            Self::empty_oneof(expect).with_span(empty_span.clone())
+        }
+    }
+
     pub fn empty_oneof<I: IntoIterator<Item = &'static str>>(expect: I) -> Self {
         Self::EmptyOneOfTokens {
             expect: expect.into_iter().collect(),

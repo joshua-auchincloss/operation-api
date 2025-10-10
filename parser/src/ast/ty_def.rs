@@ -2,7 +2,7 @@ use crate::{
     SpannedToken, Token,
     ast::ty::Type,
     defs::Spanned,
-    tokens::{Parse, Peek, straight_through},
+    tokens::{Parse, Peek},
 };
 
 pub struct NamedType {
@@ -29,6 +29,17 @@ impl Peek for NamedType {
     }
 }
 
-straight_through! {
-    NamedType { kw, name, eq, ty }
+impl crate::tokens::ToTokens for NamedType {
+    fn write(
+        &self,
+        tt: &mut crate::fmt::Printer,
+    ) {
+        tt.write(&self.kw);
+        tt.space();
+        tt.write(&self.name);
+        tt.space();
+        tt.write(&self.eq);
+        tt.space();
+        tt.write(&self.ty);
+    }
 }

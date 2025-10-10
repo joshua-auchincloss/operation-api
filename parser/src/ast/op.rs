@@ -2,7 +2,7 @@ use crate::{
     Parse, Peek, SpannedToken, Token,
     ast::ty::Type,
     defs::Spanned,
-    tokens::{self, Paren, Repeated, ToTokens, paren},
+    tokens::{Paren, Repeated, ToTokens, Token, paren},
 };
 
 pub struct Operation {
@@ -37,14 +37,27 @@ impl Peek for Operation {
 impl ToTokens for Operation {
     fn write(
         &self,
-        tt: &mut crate::tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         tt.write(&self.kw);
+        tt.space();
         tt.write(&self.name);
-        tt.write(&tokens::LParenToken::new());
-        tt.write(&self.args);
-        tt.write(&tokens::RParenToken::new());
+
+        self.paren.write_with(tt, |tt| {
+            if let Some(args) = &self.args {
+                for (idx, item) in args.value.values.iter().enumerate() {
+                    tt.write(&item.value);
+                    if idx < args.value.values.len() - 1 {
+                        tt.token(&Token::Comma);
+                        tt.space();
+                    }
+                }
+            }
+        });
+
+        tt.space();
         tt.write(&self.ret);
+        tt.space();
         tt.write(&self.return_type);
     }
 }

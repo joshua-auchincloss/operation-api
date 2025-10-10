@@ -66,6 +66,12 @@ pub enum Error {
 
     #[error("{0}")]
     AstError(#[from] tokens::LexingError),
+
+    #[error("{0}")]
+    ManifestError(#[from] operation_api_manifests::Error),
+
+    #[error("linting errors")]
+    LintFailure,
 }
 
 // todo: handle cases of deeply nested spans - where we may have started with a smaller span and then grown the size as we cascade the error
@@ -144,3 +150,14 @@ impl Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+macro_rules! bail_miette {
+    ($e: expr; ($path: expr) for $src: expr) => {
+        $e.map_err(|lex| {
+            let crate_err: crate::Error = lex.into();
+            crate_err.to_report_with($path, &$src, None)
+        })
+    };
+}
+
+pub(crate) use bail_miette;

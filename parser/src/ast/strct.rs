@@ -26,12 +26,17 @@ pub enum Sep {
 impl tokens::ToTokens for Sep {
     fn write(
         &self,
-        tt: &mut tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        if matches!(self, Self::Optional { .. }) {
-            tt.push(<Token![?]>::new().token());
+        match self {
+            Self::Optional { q, sep } => {
+                tt.write(q);
+                tt.write(sep);
+            },
+            Self::Required { sep } => {
+                tt.write(sep);
+            },
         }
-        tt.push(<Token![:]>::new().token());
     }
 }
 
@@ -67,12 +72,13 @@ pub struct Arg {
 impl tokens::ToTokens for Arg {
     fn write(
         &self,
-        tt: &mut tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        self.comments.write(tt);
-        self.name.write(tt);
-        self.sep.write(tt);
-        self.typ.write(tt);
+        tt.write(&self.comments);
+        tt.write(&self.name);
+        tt.write(&self.sep);
+        tt.space();
+        tt.write(&self.typ);
     }
 }
 
@@ -136,13 +142,23 @@ impl tokens::Peek for Struct {
 impl tokens::ToTokens for Struct {
     fn write(
         &self,
-        tt: &mut tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        self.kw.write(tt);
-        self.name.write(tt);
-        tt.push(tokens::LBraceToken::new().token());
-        self.args.write(tt);
-        tt.push(tokens::RBraceToken::new().token());
+        tt.write(&self.kw);
+        tt.space();
+        tt.write(&self.name);
+        tt.space();
+        tt.open_block();
+
+        for (idx, item) in self.args.values.iter().enumerate() {
+            tt.write(&item.value);
+            if idx < self.args.values.len() - 1 {
+                tt.token(&Token::Comma);
+                tt.add_newline();
+            }
+        }
+
+        tt.close_block();
     }
 }
 
@@ -154,7 +170,7 @@ mod test {
 
     #[test_case::test_case("struct Foo { /* comment before */ bar: i32 }", "Foo", vec![("bar", "i32", "comment before", true)]; "single required arg")]
     #[test_case::test_case("struct Foo { bar?: i32 }", "Foo", vec![("bar", "i32", "", false)]; "single optional arg")]
-    #[test_case::test_case("struct Foo { bar: i32, /* other comment */ baz?: String }", "Foo", vec![("bar", "i32", "", true), ("baz", "String", "other comment", false)]; "multiple args")]
+    #[test_case::test_case("struct Foo { bar: i32, /* other comment */ baz?: str }", "Foo", vec![("bar", "i32", "", true), ("baz", "str", "other comment", false)]; "multiple args")]
     fn test_parse_struct_args(
         src: &str,
         expected_name: &str,
@@ -171,7 +187,9 @@ mod test {
             let field = parsed.args.values.get(pos).unwrap();
 
             assert_eq!(field.value.name.borrow_string(), expect_name);
-            assert_eq!(&format!("{}", field.value.typ.tokens()), expect_ty);
+            let mut p = crate::fmt::Printer::new(&crate::fmt::FormatConfig::default());
+            p.write(&field.value.typ);
+            assert_eq!(&p.buf, expect_ty);
             assert_eq!(
                 &format!(
                     "{}",

@@ -4,6 +4,7 @@ use std::{
 };
 
 pub mod config;
+pub mod files;
 pub mod package;
 pub mod rules;
 pub mod version;
@@ -26,6 +27,10 @@ pub enum Error {
     VersionError(#[from] version::VersionError),
     #[error("{0}")]
     SerError(#[from] toml::ser::Error),
+    #[error("glob error: {0}")]
+    Glob(#[from] glob::GlobError),
+    #[error("pattern error: {0}")]
+    GlobPattern(#[from] glob::PatternError),
 }
 
 impl Error {

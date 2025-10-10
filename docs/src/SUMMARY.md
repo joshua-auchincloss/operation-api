@@ -18,4 +18,6 @@
   - [`use`](./types/use.md)
 - [Naming](./naming.md)
 - [Linting](./linting.md)
+  - [Format](./linting/format.md)
   - [Linting Rules](./linting/rules.md)
+- [Cli Reference](./cli.md)

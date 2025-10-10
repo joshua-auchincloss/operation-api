@@ -1,11 +1,14 @@
 namespace foo;
 
 #![error(MyError)]
+// #![error(MyError)]
 
 error MyError {
-    Unknown(never),
+    Unknown {
+        desc: str
+    },
     Code(i32)
-}
+};
 
 // foo is fallible
 operation foo() -> i32!;

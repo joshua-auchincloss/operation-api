@@ -6,11 +6,19 @@ license-file.workspace = true
 homepage.workspace = true
 authors.workspace = true
 
+[features]
+emit = ["clap-markdown"]
+
+
 [[bin]]
 name = "define"
 
+[[bin]]
+name = "emit"
+
 [dependencies]
 operation-api-manifests = { path = "../manifests" }
+operation-api-parser = { path = "../parser" }
 operation-api-core = { path = "../core", features = [
     "generate",
     "chrono",
@@ -26,6 +34,7 @@ human-panic = { version = "*", features = [] }
 tracing = { workspace = true, features = [] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
+clap-markdown = { version = "0.1.5", optional = true }
 
 [dev-dependencies]
 operation-api-testing = { path = "../testing" }

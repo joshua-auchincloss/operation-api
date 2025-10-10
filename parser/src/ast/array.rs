@@ -2,21 +2,16 @@ use crate::{
     SpannedToken, Token,
     ast::ty::Type,
     defs::Spanned,
-    tokens::{
-        Bracket, ImplDiagnostic, MutTokenStream, Parse, Peek, ToTokens, Token, bracket, toks,
-    },
+    tokens::{Bracket, ImplDiagnostic, Parse, Peek, ToTokens, Token, bracket, toks},
 };
 
-/// array of form `i32[]` (unsized) or `i32[4]` (sized)
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Array {
-    // i32[]
     Unsized {
         ty: Box<Spanned<Type>>,
         bracket: Bracket,
     },
-    // i32[4]
     Sized {
         ty: Box<Spanned<Type>>,
         bracket: Bracket,
@@ -60,19 +55,23 @@ impl Peek for Array {
 impl ToTokens for Array {
     fn write(
         &self,
-        tt: &mut MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         match self {
-            Self::Unsized { ty, .. } => {
-                ty.write(tt);
-                tt.push(Token::LBracket);
-                tt.push(Token::RBracket);
+            Self::Unsized { ty, bracket: _ } => {
+                tt.write(ty);
+                tt.token(&Token::LBracket);
+                tt.token(&Token::RBracket);
             },
-            Self::Sized { ty, size, .. } => {
-                ty.write(tt);
-                tt.push(Token::LBracket);
-                size.write(tt);
-                tt.push(Token::RBracket);
+            Self::Sized {
+                ty,
+                size,
+                bracket: _,
+            } => {
+                tt.write(ty);
+                tt.token(&Token::LBracket);
+                tt.write(size);
+                tt.token(&Token::RBracket);
             },
         }
     }

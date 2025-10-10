@@ -16,6 +16,8 @@ regex = "*"
 serde_json.workspace = true
 prettyprint = "*"
 toml = { workspace = true, features = ["serde"] }
+glob.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 test-case.workspace = true

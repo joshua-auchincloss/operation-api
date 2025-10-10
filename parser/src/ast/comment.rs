@@ -5,19 +5,45 @@ use crate::{
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub enum CommentAst {
-    SingleLine(tokens::CommentSingleLineToken),
-    MultiLine(tokens::CommentMultiLineToken),
+    SingleLine(Spanned<tokens::CommentSingleLineToken>),
+    MultiLine(Spanned<tokens::CommentMultiLineToken>),
 }
 
 impl tokens::ToTokens for CommentAst {
     fn write(
         &self,
-        tt: &mut tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        tt.push(match self {
-            Self::SingleLine(cmt) => cmt.token(),
-            Self::MultiLine(cmt) => cmt.token(),
-        });
+        match self {
+            Self::SingleLine(cmt) => {
+                tt.write(cmt);
+                tt.add_newline();
+            },
+            Self::MultiLine(cmt) => {
+                let content = cmt.borrow_string();
+                if content.contains('\n') {
+                    tt.word("/*");
+                    tt.buf.push('\n');
+                    tt.indent_level += 1;
+
+                    for line in content.lines() {
+                        tt.add_indent();
+                        tt.word(line.trim_start());
+                        tt.buf.push('\n');
+                    }
+
+                    tt.indent_level -= 1;
+                    tt.add_indent();
+                    tt.word("*/");
+                    tt.add_newline();
+                } else {
+                    tt.word("/* ");
+                    tt.word(content);
+                    tt.word(" */");
+                    tt.add_newline();
+                }
+            },
+        }
     }
 }
 
@@ -36,9 +62,9 @@ impl tokens::Peek for CommentAst {
 impl tokens::Parse for CommentAst {
     fn parse(stream: &mut tokens::TokenStream) -> Result<Self, tokens::LexingError> {
         Ok(if stream.peek::<tokens::CommentMultiLineToken>() {
-            Self::MultiLine(stream.parse()?.value)
+            Self::MultiLine(stream.parse()?)
         } else {
-            Self::SingleLine(stream.parse()?.value)
+            Self::SingleLine(stream.parse()?)
         })
     }
 }
@@ -70,7 +96,7 @@ impl CommentStream {
 impl tokens::ToTokens for CommentStream {
     fn write(
         &self,
-        tt: &mut tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         for c in &self.comments {
             c.value.write(tt);
@@ -108,7 +134,7 @@ mod test {
     }
 
     #[test_case::test_case(
-        "// first single line\n/* subsequent multi-line.\nthe next line within. */";
+        "// first single line\n/*\n\tsubsequent multi-line.\n\tthe next line within.\n*/\n";
         "comment stream round trip"
     )]
     pub fn round_trip(src: &str) {

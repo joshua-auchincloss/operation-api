@@ -19,6 +19,16 @@ pub enum Fix {
     Safe,
 }
 
+impl Fix {
+    pub fn diagnostic(&self) -> &'static str {
+        match self {
+            Self::Skip => "info: this fix is being skipped",
+            Self::Safe => "info: safe to fix",
+            Self::Unsafe => "warning: warning: this fix is unsafe and requires the `--unsafe` flag",
+        }
+    }
+}
+
 pub trait WithRule {
     fn with_level(
         &mut self,
@@ -45,12 +55,15 @@ pub trait WithRule {
 
 #[derive(serde::Deserialize, Debug)]
 pub struct RuleOverrides {
+    #[serde(default)]
     level: Option<RuleLevel>,
+    #[serde(default)]
     fix: Option<Fix>,
 }
 
 #[derive(serde::Deserialize, validator::Validate)]
 pub struct RuleConfig<RuleGroup: Ord + Hash> {
+    #[serde(default = "BTreeMap::new")]
     pub overrides: BTreeMap<RuleGroup, BTreeMap<String, RuleOverrides>>,
 }
 
@@ -64,11 +77,15 @@ impl<RuleGroup: Ord + Hash> Default for RuleConfig<RuleGroup> {
 
 #[macro_export]
 macro_rules! rule_config {
-    ($name: literal for $group_ty: ty) => {
+    ($name: literal for $group_ty: ty $({$($cfg: ident: $t: ty), + $(,)?})?) => {
         #[derive(serde::Deserialize, Default, validator::Validate)]
         pub struct RuleConfig {
-            #[serde(flatten)]
+            #[serde(flatten, default)]
             config: $crate::rules::RuleConfig<$group_ty>,
+            $($(
+                #[serde(flatten, default)]
+                $cfg: $t,
+            )*)*
         }
 
         impl RuleConfig {

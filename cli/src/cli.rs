@@ -25,8 +25,15 @@ impl From<LogLevel> for tracing::Level {
 }
 
 #[derive(clap::Parser, Debug, Clone)]
+#[clap(name = "")]
 pub struct Cli {
-    #[clap(long, global = true, default_value = "info", env = "LOG_LEVEL")]
+    #[clap(
+        long,
+        global = true,
+        default_value = "info",
+        env = "LOG_LEVEL",
+        help = "the verbosity level to print logs at."
+    )]
     pub log_level: LogLevel,
 
     #[clap(subcommand)]
@@ -53,6 +60,16 @@ impl Cli {
                 Ok(())
             },
             Command::Init(args) => Ok(operation_api_manifests::init(args.name, args.dir)?),
+
+            Command::Fmt(args) => {
+                let targets =
+                    operation_api_manifests::files::match_paths(&args.include, &args.exclude)?;
+
+                Ok(
+                    operation_api_parser::fmt::fmt(args.config.config_dir, targets, args.dry)
+                        .await?,
+                )
+            },
         }
     }
 }
@@ -60,13 +77,20 @@ impl Cli {
 #[derive(clap::Subcommand, Debug, Clone)]
 enum Command {
     #[clap(alias = "gen", alias = "g")]
+    /// generates models as defined in `op-gen.toml`
     Generate(GenArgs),
 
     #[clap(alias = "c")]
+    /// checks models for soundness
     Check(CheckArgs),
 
     #[clap(alias = "i")]
+    /// initializes a new schema project
     Init(InitArgs),
+
+    #[clap(alias = "f")]
+    /// formats schemas
+    Fmt(FmtArgs),
 }
 
 #[derive(clap::Args, Debug, Clone)]
@@ -89,8 +113,48 @@ struct CheckArgs {
 
 #[derive(clap::Args, Debug, Clone)]
 struct InitArgs {
-    #[clap(short = 'n', long)]
+    #[clap(short = 'n', long, help = "the name of the package to create.")]
     name: String,
-    #[clap(short = 'd', long)]
+    #[clap(
+        short = 'd',
+        long,
+        help = "the directory to create the new package in."
+    )]
     dir: Option<PathBuf>,
+}
+
+#[derive(clap::Args, Debug, Clone)]
+struct FmtArgs {
+    #[clap(flatten)]
+    config: WithConfig,
+
+    #[clap(
+        long,
+        default_value_t = false,
+        help = "if --dry, no edits will be written to files"
+    )]
+    dry: bool,
+
+    #[clap(
+        long,
+        default_value_t = true,
+        help = "if --safe=false, unsafe edits will be applied"
+    )]
+    safe: bool,
+
+    #[clap(
+        short,
+        long,
+        help = "a list of paths or globs to exclude from formatting."
+    )]
+    exclude: Vec<String>,
+
+    #[clap(
+        default_value = "./**/*.pld",
+        help = "a list of paths or globs to include in formatting"
+    )]
+    include: Vec<String>,
+
+    #[clap(short = 'W', long, help = "fail if warnings are encountered")]
+    warn_is_fail: bool,
 }

@@ -70,3 +70,4 @@ pest = "2.8"
 pest_derive = "2.8"
 
 divan = { version = "4", package = "codspeed-divan-compat" }
+miette = "7"

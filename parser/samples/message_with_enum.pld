@@ -1,12 +1,11 @@
+#[version(1)]
 namespace test;
 
-#![version(1)]
-
 enum IntEnum {
-    Foo = 1,
-    AnswerToLife = 42,
+	Foo = 1,
+	AnswerToLife = 42
 };
 
 struct TestEnumMessage {
-    a: IntEnum,
+	a: IntEnum
 };

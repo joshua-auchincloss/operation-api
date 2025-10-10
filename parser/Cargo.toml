@@ -25,7 +25,7 @@ paste.workspace = true
 bon.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-miette = { version = "7", features = ["fancy"] }
+miette = { workspace = true, features = ["fancy"] }
 
 logos = "*"
 
@@ -35,6 +35,11 @@ validator = { workspace = true, features = ["derive"] }
 
 serde_json = { workspace = true, optional = true }
 
+tokio = { workspace = true, features = ["fs"] }
+
+futures-util = "0.3"
+
+glob.workspace = true
 
 [dev-dependencies]
 criterion = { version = "*", features = ["html_reports"] }
@@ -43,3 +48,4 @@ operation-api-testing = { path = "../testing" }
 test-case.workspace = true
 serde_json.workspace = true
 divan.workspace = true
+tokio = { workspace = true, features = ["full"] }

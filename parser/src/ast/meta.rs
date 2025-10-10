@@ -1,12 +1,14 @@
 use crate::{
-    SpannedToken, Token, bail_unchecked,
+    SpannedToken, Token,
+    ast::ty::PathOrIdent,
+    bail_unchecked,
     defs::Spanned,
-    tokens::{self, Bracket, MutTokenStream, Paren, Parse, Peek, ToTokens, bracket, paren},
+    tokens::{self, Bracket, Paren, Parse, Peek, ToTokens, bracket, paren},
 };
 
 pub struct Meta<Value: Parse> {
     pub open: SpannedToken![#],
-    pub inner: Option<Token![!]>,
+    pub inner: Option<Spanned<Token![!]>>,
     pub bracket: Bracket,
     pub name: SpannedToken![ident],
     pub paren: Paren,
@@ -57,25 +59,28 @@ impl<Value: Parse + Peek> tokens::Parse for Meta<Value> {
     }
 }
 
-impl<Value: Parse + Peek + ToTokens> ToTokens for Meta<Value> {
+impl<Value: Parse + Peek> ToTokens for Meta<Value>
+where
+    Spanned<Value>: ToTokens,
+{
     fn write(
         &self,
-        tt: &mut MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         tt.write(&self.open);
         tt.write(&self.inner);
-        tt.write(&tokens::LBracketToken::new());
-        tt.write(&self.name);
-        tt.write(&tokens::LParenToken::new());
-        tt.write(&self.value);
-        tt.write(&tokens::RParenToken::new());
-        tt.write(&tokens::RBracketToken::new());
+        self.bracket.write_with(tt, |tt| {
+            tt.write(&self.name);
+            self.paren
+                .write_with(tt, |tt| tt.write(&self.value));
+        });
+        tt.add_newline();
     }
 }
 
 pub type IntMeta = Meta<Token![number]>;
 pub type StrMeta = Meta<Token![string]>;
-pub type IdentMeta = Meta<Token![ident]>;
+pub type IdentMeta = Meta<PathOrIdent>;
 
 pub enum ItemMetaItem {
     Version(Spanned<IntMeta>),
@@ -105,7 +110,7 @@ impl Parse for ItemMeta {
             } else if stream.peek::<StrMeta>() {
                 let this: Spanned<StrMeta> = stream.parse()?;
                 return Err(crate::LexingError::unknown_meta(
-                    vec![],
+                    vec!["<placeholder>"],
                     this.name.borrow_string().into(),
                     &this.name.span,
                 ));
@@ -133,7 +138,7 @@ impl Parse for ItemMeta {
 impl ToTokens for ItemMetaItem {
     fn write(
         &self,
-        tt: &mut MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         match self {
             ItemMetaItem::Version(m) => tt.write(m),
@@ -145,7 +150,7 @@ impl ToTokens for ItemMetaItem {
 impl ToTokens for ItemMeta {
     fn write(
         &self,
-        tt: &mut MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         for m in &self.meta {
             tt.write(m);
@@ -199,12 +204,33 @@ mod test {
         assert_eq!(*version.value.value.borrow_i32(), expect_version);
     }
 
+    #[test_case::test_case("#[error(MyError)]", "MyError"; "error from outer")]
+    #[test_case::test_case("#![error(MyError)]", "MyError"; "error from inner")]
+    fn test_err_parse(
+        src: &str,
+        expect_error: &str,
+    ) {
+        let mut tt = tokenize(src).expect("Should parse");
+        let meta: Spanned<ItemMeta> = tt.parse().unwrap();
+        assert!(!meta.meta.is_empty(), "meta.meta is empty!");
+        let error = match meta.meta.get(0).unwrap() {
+            ItemMetaItem::Error(err) => err,
+            #[allow(unreachable_patterns)]
+            _ => panic!("not error"),
+        };
+        let error_name = match &error.value.value.value {
+            crate::ast::ty::PathOrIdent::Ident(ident) => ident.borrow_string(),
+            crate::ast::ty::PathOrIdent::Path(..) => unreachable!(),
+        };
+        assert_eq!(error_name, expect_error);
+    }
+
     #[test_case::test_case("#[unknown(1)]", vec![
         "unknown meta attribute, 'unknown'. expected one of version",
         "1:3"
     ]; "unknown int meta")]
     #[test_case::test_case("#[foo(\"bar\")]", vec![
-        "unknown meta attribute, 'foo'. expected one of version",
+        "unknown meta attribute, 'foo'. expected one of <placeholder>",
         "1:3"
     ]; "unknown string meta")]
     #[test_case::test_case("#![baz(42)]", vec![
@@ -212,7 +238,7 @@ mod test {
         "1:4"
     ]; "unknown int meta with bang")]
     #[test_case::test_case("#![qux(\"val\")]", vec![
-        "unknown meta attribute, 'qux'. expected one of version",
+        "unknown meta attribute, 'qux'. expected one of <placeholder>",
         "1:4"
     ]; "unknown string meta with bang")]
     fn test_unknown_meta(

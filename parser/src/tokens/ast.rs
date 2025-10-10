@@ -157,12 +157,14 @@ impl<T: Parse + Peek> Parse for Vec<Spanned<T>> {
     }
 }
 
-impl<T: Peek + Parse + ToTokens, Sep: Peek + Parse + ToTokens> super::ToTokens
-    for Repeated<T, Sep>
+impl<T: Peek + Parse, Sep: Peek + Parse> super::ToTokens for Repeated<T, Sep>
+where
+    Spanned<T>: ToTokens,
+    Spanned<Sep>: ToTokens,
 {
     fn write(
         &self,
-        tt: &mut super::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         for v in &self.values {
             v.value.write(tt);
@@ -174,10 +176,21 @@ impl<T: Peek + Parse + ToTokens, Sep: Peek + Parse + ToTokens> super::ToTokens
 impl<T: ToTokens> ToTokens for Option<T> {
     fn write(
         &self,
-        tt: &mut super::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         if let Some(v) = self {
-            v.write(tt);
+            tt.write(v);
+        }
+    }
+}
+
+impl<T: ToTokens> ToTokens for &Option<T> {
+    fn write(
+        &self,
+        tt: &mut crate::fmt::Printer,
+    ) {
+        if let Some(v) = self {
+            tt.write(v);
         }
     }
 }
@@ -185,19 +198,19 @@ impl<T: ToTokens> ToTokens for Option<T> {
 impl<T: ToTokens> ToTokens for Box<T> {
     fn write(
         &self,
-        tt: &mut super::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        self.as_ref().write(tt)
+        tt.write(self.as_ref())
     }
 }
 
 impl<T: ToTokens> ToTokens for Vec<T> {
     fn write(
         &self,
-        tt: &mut super::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         for it in self {
-            tt.write(it);
+            it.write(tt);
         }
     }
 }

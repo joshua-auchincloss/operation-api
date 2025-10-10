@@ -1,18 +1,19 @@
 use crate::{
     SpannedToken, Token,
+    ast::ty::PathOrIdent,
     tokens::{Parse, Peek, ToTokens, Token},
 };
 
 pub struct Use {
     pub kw: SpannedToken![use],
-    pub namespace: SpannedToken![path],
+    pub namespace: PathOrIdent,
 }
 
 impl Parse for Use {
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
         Ok(Self {
             kw: stream.parse()?,
-            namespace: stream.parse()?,
+            namespace: PathOrIdent::parse(stream)?,
         })
     }
 }
@@ -20,10 +21,11 @@ impl Parse for Use {
 impl ToTokens for Use {
     fn write(
         &self,
-        tt: &mut crate::tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        tt.push(self.kw.token());
-        tt.push(self.namespace.token());
+        tt.write(&self.kw);
+        tt.space();
+        tt.write(&self.namespace);
     }
 }
 

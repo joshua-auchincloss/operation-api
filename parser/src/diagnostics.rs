@@ -17,6 +17,9 @@ pub struct SpanDiagnostic {
     label: String,
     #[diagnostic(help)]
     help: Option<String>,
+
+    #[diagnostic(level)]
+    level: miette::Severity,
 }
 
 impl SpanDiagnostic {
@@ -32,11 +35,15 @@ impl SpanDiagnostic {
             src: NamedSource::new(path.to_string_lossy(), source.to_string()),
             span: Some(SourceSpan::new(
                 sp.span.start.into(),
-                sp.span.end - sp.span.start,
+                sp.span
+                    .end
+                    .saturating_sub(sp.span.start)
+                    .max(1),
             )),
             message: message.into(),
             label: label.into(),
             help,
+            level: miette::Severity::Error,
         }
     }
 
@@ -52,7 +59,15 @@ impl SpanDiagnostic {
             message: message.into(),
             label: String::new(),
             help,
+            level: miette::Severity::Error,
         }
+    }
+
+    pub fn with_level(
+        &mut self,
+        level: miette::Severity,
+    ) {
+        self.level = level;
     }
 }
 

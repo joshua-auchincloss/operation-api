@@ -143,7 +143,7 @@ impl Parse for Items {
 impl Peek for Items {
     fn peek(stream: &crate::tokens::TokenStream) -> bool {
         let mut fork = stream.fork();
-        let _ = bail_unchecked!(CommentStream::parse(&mut fork); false);
+        let _ = CommentStream::parse(&mut fork).ok();
         let _: Spanned<ItemMeta> = bail_unchecked!(fork.parse(); false);
         if let Some(token) = fork.next() {
             let token = &token.value;
@@ -164,7 +164,7 @@ impl Peek for Items {
 impl ToTokens for Items {
     fn write(
         &self,
-        tt: &mut crate::tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         use Items::*;
         match self {
@@ -242,11 +242,32 @@ namespace test {
 };
 ", 1; "parses nested namespace"
     )]
+    #[test_case::test_case(
+        "
+enum Foo {
+    Abc
+};
+", 1; "parses enum with default"
+    )]
+    #[test_case::test_case(
+        "
+enum Foo {
+    Abc = 1
+};
+", 1; "parses int enum"
+    )]
+    #[test_case::test_case(
+        "
+enum Foo {
+    Abc = \"life\"
+};
+", 1; "parses str enum"
+    )]
     fn basic_smoke(
         src: &str,
         n_items: usize,
     ) {
-        let items: Vec<Spanned<super::Items>> = crate::tst::basic_smoke(src);
+        let items: Vec<Spanned<super::Items>> = crate::tst::basic_smoke(src).unwrap();
         assert_eq!(items.len(), n_items);
     }
 }

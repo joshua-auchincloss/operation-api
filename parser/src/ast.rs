@@ -22,35 +22,81 @@ use miette::IntoDiagnostic;
 
 use crate::{
     Parse,
+    ast::comment::CommentStream,
     defs::Spanned,
-    tokens::{self, AstResult, tokenize},
+    tokens::{AstResult, TokenStream, tokenize},
 };
 
 pub struct AstStream {
+    module_comments: CommentStream,
+    module_meta: Spanned<meta::ItemMeta>,
     nodes: Vec<Spanned<items::Items>>,
 }
 
 impl crate::Parse for AstStream {
     fn parse(stream: &mut crate::tokens::TokenStream) -> AstResult<Self> {
         Ok(Self {
+            module_comments: CommentStream::parse(stream)?,
+            module_meta: stream.parse()?,
             nodes: Vec::parse(stream)?,
         })
     }
 }
 
 impl AstStream {
-    pub fn from_string(src: &str) -> AstResult<Self> {
-        let mut tt = tokenize(src)?;
-        Self::parse(&mut tt)
+    pub fn format(
+        &self,
+        cfg: &crate::fmt::FormatConfig,
+    ) -> String {
+        let mut p = crate::fmt::Printer::new(cfg);
+        p.write(self);
+        p.buf
     }
 
-    pub fn from_file(path: impl AsRef<Path>) -> miette::Result<Self> {
+    pub fn from_tokens(tt: &mut TokenStream) -> AstResult<Self> {
+        let ast = Self::parse(tt)?;
+        tt.ensure_consumed()?;
+        Ok(ast)
+    }
+
+    pub fn from_tokens_with(
+        path: impl AsRef<Path>,
+        tt: &mut TokenStream,
+    ) -> miette::Result<Self> {
+        Self::from_tokens(tt).map_err(|lex| {
+            let crate_err: crate::Error = lex.into();
+            crate_err.to_report_with(path.as_ref(), &tt.source, None)
+        })
+    }
+
+    pub fn from_string(src: &str) -> AstResult<Self> {
+        let mut tt = tokenize(src)?;
+        Self::from_tokens(&mut tt)
+    }
+
+    pub fn from_string_with(
+        path: impl AsRef<Path>,
+
+        data: &str,
+    ) -> miette::Result<Self> {
+        Self::from_string(data).map_err(|lex| {
+            let crate_err: crate::Error = lex.into();
+            crate_err.to_report_with(path.as_ref(), data, None)
+        })
+    }
+
+    pub fn from_file_sync(path: impl AsRef<Path>) -> miette::Result<Self> {
         let data = std::fs::read_to_string(path.as_ref()).into_diagnostic()?;
 
-        Self::from_string(&data).map_err(|lex| {
-            let crate_err: crate::Error = lex.into();
-            crate_err.to_report_with(path.as_ref(), &data, None)
-        })
+        Self::from_string_with(path, &data)
+    }
+
+    pub async fn from_file(path: impl AsRef<Path>) -> miette::Result<Self> {
+        let data = tokio::fs::read_to_string(path.as_ref())
+            .await
+            .into_diagnostic()?;
+
+        Self::from_string_with(path, &data)
     }
 }
 
@@ -66,28 +112,53 @@ impl IntoIterator for AstStream {
 impl crate::tokens::ToTokens for AstStream {
     fn write(
         &self,
-        tt: &mut crate::tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        for node in &self.nodes {
+        if !self.module_comments.comments.is_empty() {
+            tt.write(&self.module_comments);
+        }
+
+        if !self.module_meta.meta.is_empty() {
+            tt.write(&self.module_meta);
+        }
+
+        for (i, node) in self.nodes.iter().enumerate() {
             tt.write(node);
-            tt.write(&tokens::NewlineToken::new());
+            tt.add_newline();
+            if i < self.nodes.len() - 1 {
+                tt.buf.push('\n');
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::tokens::ToTokens;
+    use crate::{fmt::FormatConfig, tokens::ToTokens};
 
     use super::*;
 
     #[test_case::test_case("samples/array.pld")]
+    #[test_case::test_case("samples/complex_union.pld")]
+    #[test_case::test_case("samples/enum.pld")]
+    #[test_case::test_case("samples/error.pld")]
+    #[test_case::test_case("samples/explicit_oneof.pld")]
+    #[test_case::test_case("samples/message_with_enum.pld")]
+    #[test_case::test_case("samples/mod.pld")]
+    #[test_case::test_case("samples/ns.pld")]
+    #[test_case::test_case("samples/op.pld")]
+    #[test_case::test_case("samples/some_import.pld")]
+    #[test_case::test_case("samples/test_message.pld")]
     fn round_trip(path: &str) {
-        let data = std::fs::read_to_string(path).unwrap();
-        let ast = AstStream::from_file(path).unwrap();
+        crate::tst::logging();
 
-        let out = ast.tokens();
-        let fmt = format!("{out}");
-        assert_eq!(data, fmt, "expected:\n{data}\ngot:\n{fmt}");
+        let data = std::fs::read_to_string(path)
+            .unwrap()
+            .replace("    ", "\t");
+        let ast = AstStream::from_file_sync(path).unwrap();
+        let cfg = FormatConfig::default();
+        let fmt = ast.format(&cfg);
+
+        assert_eq!(data, fmt, "expected:\n{}\ngot:\n{}", data, fmt);
     }
 }

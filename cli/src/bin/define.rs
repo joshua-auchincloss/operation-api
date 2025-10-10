@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use clap::Parser;
 use human_panic::{Metadata, setup_panic};
 use operation_api_cli::cli::Cli;

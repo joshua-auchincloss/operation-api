@@ -58,12 +58,6 @@ pub enum Error {
     #[error("config error: {0}")]
     Config(#[from] ::config::ConfigError),
 
-    #[error("glob error: {0}")]
-    Glob(#[from] glob::GlobError),
-
-    #[error("pattern error: {0}")]
-    GlobPattern(#[from] glob::PatternError),
-
     #[error("[{src}] {error}")]
     SourceFile { error: Box<Self>, src: String },
 
@@ -78,6 +72,18 @@ pub enum Error {
 
     #[error("{0}")]
     Manifests(#[from] operation_api_manifests::Error),
+
+    #[error("{0}")]
+    Parsing(#[from] operation_api_parser::Error),
+
+    #[error("{0}")]
+    Miette(miette::Error),
+}
+
+impl From<miette::Error> for Error {
+    fn from(value: miette::Error) -> Self {
+        Self::Miette(value)
+    }
 }
 
 impl Error {

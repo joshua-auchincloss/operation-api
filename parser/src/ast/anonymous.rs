@@ -1,7 +1,7 @@
 use crate::{
     Parse, Peek, Token,
     defs::Spanned,
-    tokens::{Brace, LBraceToken, RBraceToken, Repeated, ToTokens, brace},
+    tokens::{Brace, Repeated, ToTokens, brace},
 };
 
 pub type StructFields = Spanned<Repeated<super::strct::Arg, Token![,]>>;
@@ -38,19 +38,29 @@ impl Peek for AnonymousStruct {
 impl ToTokens for AnonymousStruct {
     fn write(
         &self,
-        tt: &mut crate::tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        tt.write(&LBraceToken::new());
-        tt.write(&self.fields);
-        tt.write(&RBraceToken::new());
+        use crate::tokens::toks::Token as TokType;
+
+        tt.open_block();
+
+        for (i, item) in self.fields.value.values.iter().enumerate() {
+            tt.write(&item.value);
+            if i < self.fields.value.values.len() - 1 {
+                tt.token(&TokType::Comma);
+                tt.add_newline();
+            }
+        }
+
+        tt.close_block();
     }
 }
 
 #[cfg(test)]
 mod test {
-    #[test_case::test_case("{ a: i32 }"; "basic one field")]
-    #[test_case::test_case("{ a: i32, b: i64 }"; "basic multi field")]
-    #[test_case::test_case("{ a: i32, /* some comment */ b: i64 }"; "fields with comment")]
+    #[test_case::test_case("{\n\ta: i32\n}"; "basic one field")]
+    #[test_case::test_case("{\n\ta: i32,\n\tb: i64\n}"; "basic multi field")]
+    #[test_case::test_case("{\n\ta: i32,\n\t/* some comment */\n\tb: i64\n}"; "fields with comment")]
     pub fn rt_anon(src: &str) {
         crate::tst::round_trip::<super::AnonymousStruct>(src).unwrap();
     }

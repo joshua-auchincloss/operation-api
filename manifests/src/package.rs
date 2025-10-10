@@ -3,7 +3,7 @@ use validator::{Validate, ValidationError};
 
 #[allow(clippy::declare_interior_mutable_const)]
 const PACKAGE_RE: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new("[a-z]([a-z0-9\\-]*)[a-z0-9]").expect("package re"));
+    LazyLock::new(|| regex::Regex::new("[a-z]([a-z0-9_\\-]*)[a-z0-9]").expect("package re"));
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(untagged)]

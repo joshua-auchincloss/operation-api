@@ -2,10 +2,9 @@ use crate::{
     SpannedToken, Token,
     ast::{anonymous::AnonymousStruct, comment::CommentStream, ty::Type},
     defs::Spanned,
-    tokens::{ImplDiagnostic, LParenToken, Paren, Parse, Peek, RParenToken, ToTokens, paren, toks},
+    tokens::{ImplDiagnostic, Paren, Parse, Peek, ToTokens, paren, toks},
 };
 
-// we either have `a(i32)` or `b { desc: str }`
 #[derive(serde::Deserialize, serde::Serialize)]
 pub enum Variant {
     Tuple {
@@ -29,21 +28,18 @@ impl ImplDiagnostic for Variant {
 
 impl Parse for Variant {
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
-        tracing::trace!(cursor=%stream.cursor(), "parsing oneof variant");
         let comments = CommentStream::parse(stream)?;
         let name = stream.parse()?;
 
         let mut inner;
 
         Ok(if stream.peek::<toks::LBraceToken>() {
-            tracing::trace!("parsing local struct variant");
             Self::LocalStruct {
                 comments,
                 name,
                 inner: stream.parse()?,
             }
         } else {
-            tracing::trace!("parsing tuple variant");
             let paren = paren!(inner in stream);
             let inner = Type::parse(&mut inner)?;
             Self::Tuple {
@@ -65,30 +61,28 @@ impl Peek for Variant {
 impl ToTokens for Variant {
     fn write(
         &self,
-        tt: &mut crate::tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         match self {
             Self::LocalStruct {
                 comments,
                 name,
                 inner,
-                ..
             } => {
                 tt.write(comments);
                 tt.write(name);
+                tt.space();
                 tt.write(inner);
             },
             Self::Tuple {
                 comments,
                 name,
                 inner,
-                ..
+                paren,
             } => {
                 tt.write(comments);
                 tt.write(name);
-                tt.write(&LParenToken::new());
-                tt.write(inner);
-                tt.write(&RParenToken::new());
+                paren.write_with(tt, |tt| tt.write(inner))
             },
         }
     }
@@ -123,15 +117,24 @@ macro_rules! variadic {
         }
 
         impl crate::tokens::ToTokens for $name {
-            fn write(&self, tt: &mut crate::tokens::MutTokenStream) {
+            fn write(&self, tt: &mut crate::fmt::Printer) {
                 tt.write(&self.kw);
+                tt.space();
                 tt.write(&self.name);
-                tt.write(&crate::tokens::LBraceToken::new());
-                tt.write(&self.variants);
-                tt.write(&crate::tokens::RBraceToken::new());
+                tt.space();
+                tt.open_block();
+
+                for (idx, item) in self.variants.values.iter().enumerate() {
+                    tt.write(&item.value);
+                    if idx < self.variants.values.len() - 1 {
+                        tt.token(&crate::tokens::Token::Comma);
+                        tt.add_newline();
+                    }
+                }
+
+                tt.close_block();
             }
         }
-
     };
 }
 
@@ -139,11 +142,11 @@ pub(crate) use variadic;
 
 #[cfg(test)]
 mod test {
-    #[test_case::test_case("a (i32)"; "type variant")]
-    #[test_case::test_case("b {desc: str}"; "type anonymous struct")]
-    #[test_case::test_case("/* some comment */ b {desc: str}"; "type anonymous struct with comment before")]
-    #[test_case::test_case("b {// some comment\ndesc: str}"; "type anonymous struct with sl comment in fields")]
-    #[test_case::test_case("b {/* some\ncomment */ desc: str}"; "type anonymous struct with ml comment in fields")]
+    #[test_case::test_case("a(i32)"; "type variant")]
+    #[test_case::test_case("b {\n\tdesc: str\n}"; "type anonymous struct")]
+    #[test_case::test_case("/* some comment */\nb {\n\tdesc: str\n}"; "type anonymous struct with comment before")]
+    #[test_case::test_case("b {\n\t// some comment\n\tdesc: str\n}"; "type anonymous struct with sl comment in fields")]
+    #[test_case::test_case("b {\n\t/*\n\t\tsome\n\t\tcomment\n\t*/\n\tdesc: str\n}"; "type anonymous struct with ml comment in fields")]
     fn round_trip(src: &str) {
         crate::tst::round_trip::<super::Variant>(src).unwrap();
     }

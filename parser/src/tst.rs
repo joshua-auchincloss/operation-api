@@ -1,4 +1,7 @@
-use crate::tokens::{self, AstResult, ToTokens, tokenize};
+use crate::{
+    fmt::{FormatConfig, Printer},
+    tokens::{self, AstResult, SpannedToken, ToTokens, tokenize},
+};
 
 pub fn logging() {
     use std::sync::Once;
@@ -19,20 +22,25 @@ pub fn round_trip<T: tokens::Parse + ToTokens>(src: &str) -> AstResult<T> {
     let mut tt = tokenize(src)?;
 
     let t = T::parse(&mut tt)?;
-    let tokens = t.tokens();
+    let mut w = Printer::new(&FormatConfig::default());
 
-    let fmt = format!("{tokens}");
+    w.write(&t);
 
-    assert_eq!(src, fmt);
+    let fmt = w.buf.clone();
+
+    let expected = src.replace("    ", "\t");
+
+    assert_eq!(expected, fmt, "source:\n{src}\ngen:\n{fmt}");
 
     Ok(t)
 }
 
-#[allow(unused)]
-pub fn basic_smoke<T: tokens::Parse>(src: &str) -> T {
+pub fn basic_smoke<T: tokens::Parse>(src: &str) -> AstResult<T> {
     logging();
 
-    let mut tt = tokenize(src).unwrap();
+    let mut tt = tokenize(src)?;
 
-    T::parse(&mut tt).unwrap()
+    let t = T::parse(&mut tt)?;
+
+    Ok(t)
 }

@@ -1,6 +1,7 @@
 use crate::{
     defs::{Spanned, span::Span},
-    tokens::{AstResult, ImplDiagnostic, MutTokenStream, error::LexingError},
+    fmt::printer::Printer,
+    tokens::{AstResult, ImplDiagnostic, error::LexingError},
 };
 use logos::Logos;
 use std::fmt;
@@ -8,22 +9,16 @@ use std::fmt;
 pub type SpannedToken = Spanned<Token>;
 
 pub trait ToTokens {
-    fn tokens(&self) -> MutTokenStream {
-        let mut tt = MutTokenStream::new();
-        self.write(&mut tt);
-        tt
-    }
-
     fn write(
         &self,
-        tt: &mut MutTokenStream,
+        tt: &mut Printer,
     );
 }
 
 macro_rules! tokens {
     (
         $(
-            $(#[token($met:literal)])*
+            $(#[token($met:literal$(, $($ex:ident = $v:literal), + $(,)?)?)])*
             $(#[regex($reg:literal $(,$e:expr)?)])*
             $(#[regfmt($fmt:expr)])?
 
@@ -38,7 +33,7 @@ macro_rules! tokens {
         #[logos(error = LexingError)]
         pub enum Token {
             $(
-                $(#[token($met)])*
+                $(#[token($met $(, $($ex = $v,)*)?)])*
                 $(#[regex($reg $(,$e)?)])*
                 $tok $(($inner))?,
             )*
@@ -59,9 +54,9 @@ macro_rules! tokens {
                     ()
                 );
 
-                impl super::ToTokens for [<$tok Token>] {
-                    fn write(&self, tt: &mut super::MutTokenStream) {
-                        tt.push(self.token());
+                impl super::ToTokens for Spanned<[<$tok Token>]> {
+                    fn write(&self, tt: &mut crate::fmt::Printer) {
+                        tt.token(&self.token());
                     }
                 }
 
@@ -132,11 +127,14 @@ macro_rules! tokens {
 
 pub(crate) use tokens as declare_tokens;
 
-// Local alias to allow macros (like paste's :snake) to generate valid identifiers
-// for methods without choking on a type path containing '::'.
 pub type PathInner = crate::ast::path::Path;
 
 declare_tokens! {
+    #[token(" ", priority = 0)]
+    Space,
+    #[token("\t", priority = 0)]
+    Tab,
+
     #[token("->")]
     Return,
     #[token("&")]
@@ -240,7 +238,7 @@ declare_tokens! {
     #[derive(PartialOrd, Ord, Hash, Eq)]
     Ident(String),
 
-    #[regex(r"(schema|[A-Za-z_][A-Za-z0-9_]*)::[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)?", parse_path)]
+    #[regex(r"(schema|[A-Za-z_][A-Za-z0-9_]*)::[A-Za-z_][A-Za-z0-9_]*(?::[A-Za-z_][A-Za-z0-9_]*)*", parse_path)]
     #[regfmt("path")]
     Path(PathInner),
 
@@ -281,6 +279,8 @@ impl fmt::Display for Token {
     ) -> fmt::Result {
         use Token::*;
         match self {
+            Space => write!(f, " "),
+            Tab => write!(f, "\t"),
             Amp => write!(f, "&"),
             DoubleColon => write!(f, "::"),
             LBrace => write!(f, "{{"),
@@ -332,7 +332,13 @@ impl fmt::Display for Token {
             Number(n) => write!(f, "{}", n),
             String(s) => write!(f, "\"{}\"", s),
             CommentSingleLine(s) => write!(f, "// {}", s),
-            CommentMultiLine(s) => write!(f, "/* {} */", s),
+            CommentMultiLine(s) => {
+                if s.contains('\n') {
+                    write!(f, "/*\n{}\n*/", s)
+                } else {
+                    write!(f, "/* {} */", s)
+                }
+            },
         }
     }
 }
@@ -450,7 +456,7 @@ macro_rules! SpannedToken {
 macro_rules! straight_through {
     ($ty: ident $(<$g:ident>)? {$($field: ident), + $(,)?}) => {
         impl$(<$g: crate::Parse + crate::tokens::ToTokens>)? crate::tokens::ToTokens for $ty $(<$g>)? {
-            fn write(&self, tt: &mut crate::tokens::MutTokenStream) {
+            fn write(&self, tt: &mut crate::fmt::Printer) {
                 $(
                     tt.write(&self.$field);
                 )*

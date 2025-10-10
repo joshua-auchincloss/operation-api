@@ -1,6 +1,4 @@
-pub mod ident;
 use crate::{Peek, tokens::ToTokens};
-pub use ident::*;
 
 pub use span::Span;
 
@@ -79,9 +77,18 @@ impl<T> std::ops::Deref for Spanned<T> {
 impl<T: ToTokens> ToTokens for Spanned<T> {
     fn write(
         &self,
-        tt: &mut crate::tokens::MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
-        self.value.write(tt)
+        tt.write(&self.value)
+    }
+}
+
+impl<T: ToTokens> ToTokens for &Spanned<T> {
+    fn write(
+        &self,
+        tt: &mut crate::fmt::Printer,
+    ) {
+        tt.write(&self.value)
     }
 }
 

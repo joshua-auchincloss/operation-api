@@ -31,12 +31,12 @@ macro_rules! builtin {
             }
 
             impl ToTokens for Builtin {
-                fn write(&self, tt: &mut MutTokenStream) {
-                    tt.push(match self {
+                fn write(&self, tt: &mut crate::fmt::Printer) {
+                    match self {
                         $(
-                            Self::$t(t) => t.value.token(),
+                            Self::$t(t) => tt.write(t),
                         )*
-                    });
+                    };
                 }
             }
 
@@ -106,13 +106,58 @@ builtin! {
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
+#[serde(untagged)]
+pub enum PathOrIdent {
+    Path(SpannedToken![path]),
+    Ident(SpannedToken![ident]),
+}
+
+impl Peek for PathOrIdent {
+    fn is(token: &Token) -> bool {
+        <Token![path]>::is(token) || <Token![ident]>::is(token)
+    }
+}
+
+impl Parse for PathOrIdent {
+    fn parse(stream: &mut TokenStream) -> Result<Self, LexingError> {
+        Ok(if stream.peek::<Token![path]>() {
+            Self::Path(stream.parse()?)
+        } else if stream.peek::<Token![ident]>() {
+            Self::Ident(stream.parse()?)
+        } else {
+            let last = stream
+                .last()
+                .map(|it| it.span.clone())
+                .unwrap_or(crate::defs::Span::new(0, 0));
+            return Err(LexingError::one_of(
+                stream,
+                vec![<Token![path]>::fmt(), <Token![ident]>::fmt()],
+                &last,
+            ));
+        })
+    }
+}
+
+impl ToTokens for PathOrIdent {
+    fn write(
+        &self,
+        tt: &mut crate::fmt::Printer,
+    ) {
+        match self {
+            Self::Ident(t) => t.write(tt),
+            Self::Path(t) => t.write(tt),
+        }
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Type {
     Builtin {
         ty: Spanned<Builtin>,
     },
     Ident {
-        to: SpannedToken![path],
+        to: PathOrIdent,
     },
     OneOf {
         ty: Spanned<AnonymousOneOf>,
@@ -163,10 +208,10 @@ impl Parse for Type {
             Type::Builtin {
                 ty: stream.parse()?,
             }
-        } else if stream.peek::<Token![ident]>() {
+        } else if stream.peek::<PathOrIdent>() {
             tracing::trace!("parsing ident in type");
             Type::Ident {
-                to: stream.parse()?,
+                to: PathOrIdent::parse(stream)?,
             }
         } else if stream.peek::<AnonymousStruct>() {
             tracing::trace!("parsing struct in type");
@@ -189,12 +234,9 @@ impl Parse for Type {
         let end = stream.current_span().end;
         let mut current = Spanned::new(start, end, current);
 
-        // we need to be careful here and manually parse the Array types. this is because if
-        // we use Array::parse, we can run into infinite recursion errors as the array parses the inner types
         while stream.peek::<toks::LBracketToken>() {
-            tracing::trace!("parsing trailing array suffix");
             let mut inner_tokens;
-            let bracket = bracket!(inner_tokens in stream); // unit ()
+            let bracket = bracket!(inner_tokens in stream);
             let size: Option<SpannedToken![number]> = if inner_tokens.peek::<Token![number]>() {
                 Some(inner_tokens.parse()?)
             } else {
@@ -209,8 +251,7 @@ impl Parse for Type {
                 .span
                 .end;
 
-            // move current into boxed inner type
-            let inner_spanned = current; // move
+            let inner_spanned = current;
             let array_value = match size {
                 Some(sz) => {
                     Array::Sized {
@@ -258,7 +299,7 @@ impl Peek for Type {
 impl ToTokens for Type {
     fn write(
         &self,
-        tt: &mut MutTokenStream,
+        tt: &mut crate::fmt::Printer,
     ) {
         match self {
             Self::Builtin { ty } => ty.write(tt),
@@ -271,10 +312,10 @@ impl ToTokens for Type {
                 ty.write(tt);
                 ex.write(tt);
             },
-            Self::Paren { ty, .. } => {
-                tt.push(Token::LParen);
-                ty.write(tt);
-                tt.push(Token::RParen);
+            Self::Paren { ty, paren: _ } => {
+                tt.token(&Token::LParen);
+                tt.write(ty);
+                tt.token(&Token::RParen);
             },
         }
     }
@@ -297,20 +338,20 @@ mod test {
     #[test_case::test_case("bool")]
     #[test_case::test_case("str")]
     #[test_case::test_case("str!"; "builtin result")]
-    #[test_case::test_case("i32 []"; "round trip unsized array")]
-    #[test_case::test_case("i64 [] []"; "round trip double unsized array")]
-    #[test_case::test_case("i32 [10]"; "round trip sized array")]
-    #[test_case::test_case("i64 [] [5]"; "round trip mixed sized/unsized array")]
+    #[test_case::test_case("i32[]"; "round trip unsized array")]
+    #[test_case::test_case("i64[][]"; "round trip double unsized array")]
+    #[test_case::test_case("i32[10]"; "round trip sized array")]
+    #[test_case::test_case("i64[][5]"; "round trip mixed sized/unsized array")]
     #[test_case::test_case("oneof i32 | i64"; "round trip oneof builtins")]
-    #[test_case::test_case("oneof i32 [] | i64 [] []"; "round trip oneof arrays")]
-    #[test_case::test_case("oneof i32 | i64 | str | bool | f32 | u8 []"; "round trip nested oneof")]
-    #[test_case::test_case("str [] [] []"; "round trip triple unsized array")]
-    #[test_case::test_case("bool [42]"; "round trip sized bool array")]
+    #[test_case::test_case("oneof i32[] | i64[][]"; "round trip oneof arrays")]
+    #[test_case::test_case("oneof i32 | i64 | str | bool | f32 | u8[]"; "round trip nested oneof")]
+    #[test_case::test_case("str[][][]"; "round trip triple unsized array")]
+    #[test_case::test_case("bool[42]"; "round trip sized bool array")]
     #[test_case::test_case("binary"; "round trip binary")]
     #[test_case::test_case("datetime"; "round trip datetime")]
     #[test_case::test_case("never"; "round trip never")]
-    #[test_case::test_case("(oneof i32 | f32) []"; "round trip nested oneof array with paren")]
-    #[test_case::test_case("(oneof i32 | f32) [] !"; "round trip nested oneof array with paren result")]
+    #[test_case::test_case("(oneof i32 | f32)[]"; "round trip nested oneof array with paren")]
+    #[test_case::test_case("(oneof i32 | f32)[]!"; "round trip nested oneof array with paren result")]
     #[test_case::test_case("oneof my_struct | never"; "round trip ident and never")]
     #[test_case::test_case("my_struct & other_struct"; "basic union")]
     #[test_case::test_case("my_struct & ((other_struct & inner_struct) & next_struct)"; "nested union")]

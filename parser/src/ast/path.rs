@@ -1,59 +1,52 @@
 use crate::tokens::{AstResult, LexingError};
 use std::fmt::{Display, Formatter};
 
-pub(crate) const VALID_FORMS: &str =
-    "`schema::ns`, `pkg::ns::Thing`, `ns::Thing`, `pkg::ns`, `external::pkg::Obj`";
+pub(crate) const VALID_FORMS: &str = "`schema::a::b`, `pkg::a::b`, `a::b`, `single`";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Path {
-    /// `schema::ns`
-    LocalNamespace { namespace: String },
-    /// `schema::ns::Thing`
-    LocalObject { namespace: String, object: String },
-    /// `ns::Thing` or `pkg::ns`
-    Ambiguous { first: String, second: String },
-    /// `external::pkg::Obj`
-    ExternalObject {
-        schema: String,
-        namespace: String,
-        object: String,
-    },
+    Local { bits: Vec<String> },
+    Ambiguous { bits: Vec<String> },
 }
 
 impl Path {
     pub fn parse(s: &str) -> AstResult<Self> {
-        Ok(match s.split("::").collect::<Vec<_>>().as_slice() {
-            ["schema", ns] => {
-                Self::LocalNamespace {
-                    namespace: ns.to_string(),
-                }
-            },
-            ["schema", ns, obj] => {
-                Self::LocalObject {
-                    namespace: ns.to_string(),
-                    object: obj.to_string(),
-                }
-            },
-            [schema, ns, obj] if *schema != "schema" => {
-                Self::ExternalObject {
-                    schema: schema.to_string(),
-                    namespace: ns.to_string(),
-                    object: obj.to_string(),
-                }
-            },
-            [first, second] if *first != "schema" => {
-                Self::Ambiguous {
-                    first: first.to_string(),
-                    second: second.to_string(),
-                }
-            },
-            _ => {
+        let parts: Vec<&str> = s.split("::").collect();
+
+        if parts.is_empty() {
+            return Err(LexingError::InvalidPath {
+                input: s.into(),
+                reason: format!("expected one of {VALID_FORMS}"),
+            });
+        }
+
+        if parts[0] == "schema" {
+            let bits = parts
+                .iter()
+                .skip(1)
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>();
+            if bits.is_empty() {
                 return Err(LexingError::InvalidPath {
                     input: s.into(),
                     reason: format!("expected one of {VALID_FORMS}"),
                 });
-            },
-        })
+            }
+            Ok(Path::Local { bits })
+        } else {
+            let bits = parts
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>();
+            Ok(Path::Ambiguous { bits })
+        }
+    }
+
+    pub fn segments(&self) -> &Vec<String> {
+        match self {
+            Path::Local { bits } => bits,
+            Path::Ambiguous { bits } => bits,
+        }
     }
 }
 
@@ -63,39 +56,32 @@ impl Display for Path {
         f: &mut Formatter<'_>,
     ) -> std::fmt::Result {
         match self {
-            Self::LocalNamespace { namespace } => write!(f, "schema::{namespace}"),
-            Self::LocalObject { namespace, object } => write!(f, "schema::{namespace}::{object}"),
-            Self::ExternalObject {
-                schema,
-                namespace,
-                object,
-            } => {
-                write!(f, "{schema}::{namespace}::{object}")
-            },
-            Self::Ambiguous { first, second } => {
-                write!(f, "{first}::{second}")
+            Path::Local { bits } => write!(f, "{}", bits.join("::")),
+            Path::Ambiguous { bits } => {
+                write!(f, "{}", bits.join("::"))
             },
         }
     }
 }
 
 mod serde {
+    use super::Path;
 
-    impl serde::Serialize for super::Path {
+    impl serde::Serialize for Path {
         fn serialize<S>(
             &self,
             serializer: S,
         ) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer, {
-            serializer.serialize_str(&format!("{self}"))
+            serializer.serialize_str(&format!("{}", self))
         }
     }
 
     struct Visitor;
 
     impl<'v> serde::de::Visitor<'v> for Visitor {
-        type Value = super::Path;
+        type Value = Path;
 
         fn expecting(
             &self,
@@ -110,11 +96,11 @@ mod serde {
         ) -> Result<Self::Value, E>
         where
             E: serde::de::Error, {
-            super::Path::parse(v).map_err(|err| serde::de::Error::custom(format!("{err}")))
+            Path::parse(v).map_err(|err| serde::de::Error::custom(format!("{err}")))
         }
     }
 
-    impl<'de> serde::Deserialize<'de> for super::Path {
+    impl<'de> serde::Deserialize<'de> for Path {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
             D: serde::Deserializer<'de>, {
