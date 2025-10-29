@@ -1,7 +1,5 @@
+#![err(MyError)]
 namespace foo;
-
-#![error(MyError)]
-// #![error(MyError)]
 
 error MyError {
     Unknown {

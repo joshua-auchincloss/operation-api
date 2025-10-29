@@ -31,14 +31,12 @@ impl SpanDiagnostic {
         label: impl Into<String>,
         help: Option<String>,
     ) -> Self {
+        let span = sp.span();
         Self {
             src: NamedSource::new(path.to_string_lossy(), source.to_string()),
             span: Some(SourceSpan::new(
-                sp.span.start.into(),
-                sp.span
-                    .end
-                    .saturating_sub(sp.span.start)
-                    .max(1),
+                span.start.into(),
+                span.end.saturating_sub(span.start).max(1),
             )),
             message: message.into(),
             label: label.into(),

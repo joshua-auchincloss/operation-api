@@ -53,17 +53,26 @@ impl Cli {
             },
             Command::Check(args) => {
                 // we only need to initialize as we perform pre-checks at object creation
-                let gen_conf = operation_api_core::generate::GenerationConfig::new(
-                    args.config.config_dir.as_deref(),
-                )?;
-                let _ = operation_api_core::generate::Generation::new(gen_conf)?;
+                // let gen_conf = operation_api_core::generate::GenerationConfig::new(
+                //     args.config.config_dir.as_deref(),
+                // )?;
+                // let _ = operation_api_core::generate::Generation::new(gen_conf)?;
+                let p = operation_api_parser::ctx::CompileCtx::from_entry_point_with_progress(
+                    args.config.config_dir.unwrap_or("./".into()),
+                    args.progress,
+                )
+                .await
+                .map_err(|err| err.to_report(None, None, None))?;
+
+                p.finalize().await?;
+
                 Ok(())
             },
             Command::Init(args) => Ok(operation_api_manifests::init(args.name, args.dir)?),
 
             Command::Fmt(args) => {
                 let targets =
-                    operation_api_manifests::files::match_paths(&args.include, &args.exclude)?;
+                    operation_api_fs::match_paths::match_paths(&args.include, &args.exclude)?;
 
                 Ok(
                     operation_api_parser::fmt::fmt(args.config.config_dir, targets, args.dry)
@@ -109,6 +118,9 @@ struct GenArgs {
 struct CheckArgs {
     #[clap(flatten)]
     config: WithConfig,
+
+    #[clap(long, default_value_t = true, help = "show compilation progress")]
+    progress: bool,
 }
 
 #[derive(clap::Args, Debug, Clone)]

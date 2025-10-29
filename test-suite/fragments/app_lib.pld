@@ -1,0 +1,9 @@
+namespace app;
+
+use lib_a;
+use lib_b;
+
+struct Combined {
+	a: EventA,
+	b: EventB
+};

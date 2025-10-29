@@ -1,6 +1,9 @@
+use std::collections::BTreeSet;
+
 use crate::{
     SpannedToken, Token,
     ast::{anonymous::AnonymousStruct, array::Array, one_of::AnonymousOneOf, union::Union},
+    ctx::{NamedItemContext, RefOrItemContext},
     defs::Spanned,
     tokens::*,
 };
@@ -8,7 +11,7 @@ use crate::{
 macro_rules! builtin {
     ($($t: ident), + $(,)?) => {
         paste::paste!{
-            #[derive(serde::Serialize, serde::Deserialize)]
+            #[derive(serde::Serialize, serde::Deserialize, Clone)]
             #[serde(tag = "type", rename_all = "snake_case")]
             pub enum Builtin {
                 $(
@@ -105,11 +108,85 @@ builtin! {
     Never
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 #[serde(untagged)]
 pub enum PathOrIdent {
     Path(SpannedToken![path]),
     Ident(SpannedToken![ident]),
+}
+
+impl std::fmt::Display for PathOrIdent {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        match self {
+            Self::Path(p) => write!(f, "{}", p.value.borrow_path_inner()),
+            Self::Ident(i) => write!(f, "{}", i.value.borrow_string()),
+        }
+    }
+}
+
+impl TriesQualify for SpannedToken![ident] {
+    fn qualify_one(
+        &self,
+        context: &RefOrItemContext,
+        potential: &mut BTreeSet<NamedItemContext>,
+    ) {
+        match context {
+            RefOrItemContext::Ref(ctx) => {
+                potential.insert(ctx.item(self.clone()));
+            },
+            RefOrItemContext::Item(item) => {
+                potential.insert(item.clone());
+            },
+        }
+    }
+}
+
+pub trait TriesQualify {
+    fn qualify_one(
+        &self,
+        context: &RefOrItemContext,
+        potential: &mut BTreeSet<NamedItemContext>,
+    );
+
+    fn qualified_in_context(
+        &self,
+        context: &[RefOrItemContext],
+    ) -> BTreeSet<NamedItemContext> {
+        let mut qualified = BTreeSet::new();
+        for ctx in context {
+            match ctx {
+                RefOrItemContext::Ref(..) => {
+                    self.qualify_one(ctx, &mut qualified);
+                },
+                RefOrItemContext::Item(qual) => {
+                    qualified.insert(qual.clone());
+                },
+            }
+        }
+
+        qualified
+    }
+}
+
+impl TriesQualify for PathOrIdent {
+    fn qualify_one(
+        &self,
+        context: &RefOrItemContext,
+        potential: &mut BTreeSet<NamedItemContext>,
+    ) {
+        match self {
+            Self::Ident(id) => {
+                id.qualify_one(context, potential);
+            },
+            Self::Path(p) => {
+                p.borrow_path_inner()
+                    .qualify_one(context, potential);
+            },
+        }
+    }
 }
 
 impl Peek for PathOrIdent {
@@ -150,7 +227,7 @@ impl ToTokens for PathOrIdent {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum Type {
     Builtin {
@@ -181,10 +258,25 @@ pub enum Type {
     },
 }
 
+impl Type {
+    pub fn type_name(&self) -> String {
+        match self {
+            Self::Builtin { ty } => ty.display(),
+            Self::Ident { .. } => "reference".into(),
+            Self::OneOf { .. } => "oneof".into(),
+            Self::Paren { ty, .. } => format!("({})", ty.type_name()),
+            Self::Result { ty, .. } => format!("{}!", ty.type_name()),
+            Self::Struct { .. } => "anon struct".into(),
+            Self::Union { .. } => "union".into(),
+            Self::Array { ty } => ty.type_name(),
+        }
+    }
+}
+
 impl Parse for Type {
     fn parse(stream: &mut TokenStream) -> Result<Self, LexingError> {
         tracing::trace!(cursor=%stream.cursor(), "parsing type");
-        let start = stream.current_span().start;
+        let start = stream.current_span().span().start;
         let current: Type = if stream.peek::<AnonymousOneOf>() {
             tracing::trace!("parsing oneof in type");
             Type::OneOf {
@@ -231,7 +323,7 @@ impl Parse for Type {
             });
         };
 
-        let end = stream.current_span().end;
+        let end = stream.current_span().span().end;
         let mut current = Spanned::new(start, end, current);
 
         while stream.peek::<toks::LBracketToken>() {
@@ -243,12 +335,12 @@ impl Parse for Type {
                 None
             };
 
-            let start = current.span.start;
+            let start = current.span().start;
             let end = stream
                 .tokens
                 .get(stream.cursor - 1)
                 .expect("cursor after consuming RBracket")
-                .span
+                .span()
                 .end;
 
             let inner_spanned = current;
@@ -272,10 +364,10 @@ impl Parse for Type {
         }
 
         if stream.peek::<Token![!]>() {
-            let ex = stream.parse()?;
+            let ex: Spanned<BangToken> = stream.parse()?;
             current = Spanned::new(
                 start,
-                ex.span.end,
+                ex.span().end,
                 Type::Result {
                     ty: current.map(Box::new),
                     ex,
@@ -321,8 +413,32 @@ impl ToTokens for Type {
     }
 }
 
+impl Type {
+    pub fn is_builtin(&self) -> bool {
+        matches!(self, Type::Builtin { .. })
+    }
+
+    pub fn is_ident(&self) -> bool {
+        matches!(self, Type::Ident { .. })
+    }
+
+    pub fn is_union(&self) -> bool {
+        matches!(self, Type::Union { .. })
+    }
+
+    pub fn is_anonymous_struct(&self) -> bool {
+        matches!(self, Type::Struct { .. })
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use crate::{
+        ast::ty::TriesQualify,
+        ctx::RefOrItemContext,
+        defs::Spanned,
+        tokens::{IdentToken, ToTokens},
+    };
 
     #[test_case::test_case("i8")]
     #[test_case::test_case("i16")]
@@ -357,5 +473,30 @@ mod test {
     #[test_case::test_case("my_struct & ((other_struct & inner_struct) & next_struct)"; "nested union")]
     fn round_trip(src: &str) {
         crate::tst::round_trip::<super::Type>(src).unwrap();
+    }
+
+    #[test_case::test_case("MyStruct", vec!["foo::bar::MyStruct".into()])]
+    fn test_qualify(
+        src: &str,
+        expect: Vec<String>,
+    ) {
+        let a = crate::tst::round_trip::<super::PathOrIdent>(src).unwrap();
+
+        let pkg = crate::ctx::RefContext::new("foo".into(), vec!["bar".into()]);
+        let qual = a.qualified_in_context(&[
+            // e.g. `use foo::bar::MyStruct;`
+            RefOrItemContext::Item(
+                pkg.item(Spanned::call_site(IdentToken::new("MyStruct".into()))),
+            ),
+            // e.g. `use foo::bar;`
+            RefOrItemContext::Ref(pkg),
+        ]);
+
+        assert_eq!(
+            qual.iter()
+                .map(ToTokens::display)
+                .collect::<Vec<_>>(),
+            expect
+        );
     }
 }

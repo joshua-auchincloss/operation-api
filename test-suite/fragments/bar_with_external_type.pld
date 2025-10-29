@@ -1,0 +1,7 @@
+namespace foo;
+
+use abc_corp;
+
+struct Test {
+	a: Bar
+};

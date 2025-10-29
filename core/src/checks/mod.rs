@@ -134,7 +134,7 @@ mod test {
             check.check_type(&Type::Binary).is_err()
         }
     }; "test plugin loads" )]
-    fn test_plugin<F: Fn(Box<dyn Check>) -> ()>(
+    fn test_plugin<F: Fn(Box<dyn Check>)>(
         name: &'static str,
         f: F,
     ) {

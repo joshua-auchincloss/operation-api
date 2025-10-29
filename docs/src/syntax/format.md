@@ -69,6 +69,11 @@ enum Status {
 	Active = 1,
 	Inactive = 2,
 }
+
+use foo::{
+	Bar,
+	Baz,
+}
 ```
 
 ## Blank Lines
@@ -147,3 +152,23 @@ struct Foo {
 	bar: i32,
 }
 ```
+
+## Use Statements
+
+Single-item use statements are formatted inline without braces:
+
+```pld
+use foo::bar::Baz;
+```
+
+Multiple items from the same path are collapsed into a single use statement with braces, formatted over multiple lines:
+
+```pld
+use foo::bar::{
+	Baz,
+	Qux,
+	Another,
+}
+```
+
+The formatter will combine separate use statements from the same path into a single multi-line statement.

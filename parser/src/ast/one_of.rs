@@ -5,7 +5,7 @@ use crate::{
     tokens::{ImplDiagnostic, Parse, Peek, Repeated, ToTokens, toks},
 };
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct AnonymousOneOf {
     pub(crate) kw: SpannedToken![oneof],
     pub(crate) variants: Spanned<Repeated<Type, Token![|]>>,
@@ -74,7 +74,7 @@ impl Parse for AnonymousOneOf {
 
         let end_span = values
             .last()
-            .map(|v| v.value.span.clone())
+            .map(|v| v.value.span())
             .unwrap();
 
         let variants = Spanned::new(

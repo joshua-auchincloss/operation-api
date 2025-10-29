@@ -19,7 +19,7 @@ mod test {
             .unwrap()
             .replace("\r", "");
 
-        const EXPECT: &'static str = include_str!("../../samples/test-struct-readme.toml");
+        const EXPECT: &str = include_str!("../../samples/test-struct-readme.toml");
         assert_eq!(ser, EXPECT.replace("\r", ""));
 
         test_gen::preserved();

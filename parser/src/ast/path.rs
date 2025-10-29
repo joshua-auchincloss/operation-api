@@ -1,12 +1,57 @@
-use crate::tokens::{AstResult, LexingError};
-use std::fmt::{Display, Formatter};
+use crate::{
+    ast::ty::TriesQualify,
+    ctx::{NamedItemContext, RefOrItemContext},
+    defs::Spanned,
+    tokens::{AstResult, IdentToken, LexingError},
+};
+use std::{
+    collections::BTreeSet,
+    fmt::{Display, Formatter},
+};
 
-pub(crate) const VALID_FORMS: &str = "`schema::a::b`, `pkg::a::b`, `a::b`, `single`";
+pub(crate) const VALID_FORMS: &str =
+    "`schema::a::b`, `pkg::a::b`, `a::b::SomeStruct`, `SomeStruct`";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Path {
     Local { bits: Vec<String> },
     Ambiguous { bits: Vec<String> },
+}
+impl TriesQualify for Path {
+    fn qualify_one(
+        &self,
+        context: &RefOrItemContext,
+        potential: &mut BTreeSet<NamedItemContext>,
+    ) {
+        let context = match context {
+            RefOrItemContext::Ref(ctx) => ctx,
+            RefOrItemContext::Item(_) => return,
+        };
+
+        let bits = match self {
+            Path::Local { bits } => bits,
+            Path::Ambiguous { bits } => bits,
+        };
+
+        // we shouldn't have empty paths since this would be a compiler error, but JIC
+        if bits.is_empty() {
+            return;
+        }
+
+        let name = Spanned::call_site(<IdentToken>::new(bits.last().unwrap().to_string()));
+
+        potential.insert(context.item(name));
+    }
+}
+
+impl std::hash::Hash for Path {
+    fn hash<H: std::hash::Hasher>(
+        &self,
+        state: &mut H,
+    ) {
+        let fmt = self.to_string();
+        fmt.hash(state);
+    }
 }
 
 impl Path {
@@ -20,24 +65,14 @@ impl Path {
             });
         }
 
-        if parts[0] == "schema" {
-            let bits = parts
-                .iter()
-                .skip(1)
-                .map(|p| p.to_string())
-                .collect::<Vec<_>>();
-            if bits.is_empty() {
-                return Err(LexingError::InvalidPath {
-                    input: s.into(),
-                    reason: format!("expected one of {VALID_FORMS}"),
-                });
-            }
+        let bits = parts
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>();
+
+        if bits[0] == "schema" {
             Ok(Path::Local { bits })
         } else {
-            let bits = parts
-                .iter()
-                .map(|p| p.to_string())
-                .collect::<Vec<_>>();
             Ok(Path::Ambiguous { bits })
         }
     }
@@ -47,6 +82,10 @@ impl Path {
             Path::Local { bits } => bits,
             Path::Ambiguous { bits } => bits,
         }
+    }
+
+    pub fn is_local(&self) -> bool {
+        matches!(self, Self::Local { .. })
     }
 }
 

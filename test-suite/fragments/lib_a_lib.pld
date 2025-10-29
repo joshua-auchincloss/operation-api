@@ -1,0 +1,7 @@
+namespace lib_a;
+
+use common;
+
+struct EventA {
+	ts: Timestamp
+};

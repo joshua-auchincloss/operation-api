@@ -62,7 +62,7 @@ fn sum(values: Vec<i32>) -> i32 {
 
 #[operation(version = 1)]
 /// this is a test description
-fn with_lt<'a>(value: &'a str) -> &'a str {
+fn with_lt(value: &str) -> &str {
     value
 }
 

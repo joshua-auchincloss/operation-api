@@ -1,1 +1,4 @@
 book
+__pycache__/
+*.png
+/theme

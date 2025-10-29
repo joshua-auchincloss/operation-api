@@ -5,6 +5,7 @@ use crate::{
     tokens::{Parse, Peek},
 };
 
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct NamedType {
     pub kw: SpannedToken![type],
     pub name: SpannedToken![ident],

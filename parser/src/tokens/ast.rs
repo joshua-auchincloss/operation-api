@@ -33,7 +33,8 @@ pub trait Parse: Sized {
     fn parse(stream: &mut TokenStream) -> Result<Self, LexingError>;
     fn parse_spanned(stream: &mut TokenStream) -> Result<Spanned<Self>, LexingError> {
         let start = extract_span(stream.tokens.get(stream.cursor))
-            .unwrap_or(&Span { start: 0, end: 0 })
+            .unwrap_or(&Span::CallSite)
+            .span()
             .start;
 
         let p = Self::parse(stream)?;
@@ -41,7 +42,7 @@ pub trait Parse: Sized {
         let end = stream
             .tokens
             .get(stream.cursor.saturating_sub(1))
-            .map(|it| it.span.end)
+            .map(|it| it.span().end)
             .unwrap_or(0);
 
         Ok(Spanned::new(start, end, p))
@@ -76,15 +77,23 @@ impl<T: Peek> Peek for Box<T> {
     }
 }
 
-#[derive(PartialEq, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(PartialEq, Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct RepeatedItem<T: Peek + Parse, Sep: Peek + Parse> {
     pub value: Spanned<T>,
     pub(crate) sep: Option<Spanned<Sep>>,
 }
 
-#[derive(PartialEq, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(PartialEq, Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct Repeated<T: Peek + Parse, Sep: Peek + Parse> {
     pub values: Vec<RepeatedItem<T, Sep>>,
+}
+
+impl<T: Peek + Parse, Sep: Peek + Parse> Repeated<T, Sep> {
+    pub fn empty() -> Self {
+        Self {
+            values: Vec::with_capacity(0),
+        }
+    }
 }
 
 impl<T: Peek + Parse, Sep: Peek + Parse> IntoIterator for Repeated<T, Sep> {

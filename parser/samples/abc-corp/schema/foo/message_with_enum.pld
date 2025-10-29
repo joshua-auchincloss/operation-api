@@ -1,5 +1,5 @@
-namespace test;
+namespace foo;
 
 struct TestEnumMessage {
-    a: IntEnum,
+	a: IntEnum
 };

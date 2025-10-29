@@ -12,7 +12,7 @@ use crate::{
     tokens::{Brace, ImplDiagnostic, Parse, Peek, Repeated, brace},
 };
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub enum Sep {
     Required {
         sep: SpannedToken![:],
@@ -61,7 +61,7 @@ impl ImplDiagnostic for Sep {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Arg {
     pub comments: CommentStream,
     pub name: SpannedToken![ident],
@@ -114,6 +114,7 @@ impl Peek for Arg {
     }
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Struct {
     pub kw: SpannedToken![struct],
     pub name: SpannedToken![ident],
@@ -150,13 +151,12 @@ impl tokens::ToTokens for Struct {
         tt.space();
         tt.open_block();
 
-        for (idx, item) in self.args.values.iter().enumerate() {
-            tt.write(&item.value);
-            if idx < self.args.values.len() - 1 {
-                tt.token(&Token::Comma);
-                tt.add_newline();
-            }
-        }
+        tt.write_comma_separated(
+            self.args
+                .values
+                .iter()
+                .map(|item| &item.value),
+        );
 
         tt.close_block();
     }
@@ -164,7 +164,7 @@ impl tokens::ToTokens for Struct {
 
 #[cfg(test)]
 mod test {
-    use crate::tokens::{ToTokens, tokenize};
+    use crate::tokens::tokenize;
 
     use super::*;
 
@@ -191,17 +191,15 @@ mod test {
             p.write(&field.value.typ);
             assert_eq!(&p.buf, expect_ty);
             assert_eq!(
-                &format!(
-                    "{}",
-                    field
-                        .value
-                        .value
-                        .comments
-                        .comments()
-                        .map(Clone::clone)
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                ),
+                &field
+                    .value
+                    .value
+                    .comments
+                    .comments()
+                    .map(Clone::clone)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    .to_string(),
                 expect_comment
             );
 

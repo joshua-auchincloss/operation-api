@@ -1,0 +1,20 @@
+[package]
+name = "operation-api-test-suite"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[[bench]]
+name = "parsing"
+harness = false
+
+[dependencies]
+operation-api-parser = { path = "../parser" }
+operation-api-fs = { path = "../fs", features = ["fs-test"] }
+operation-api-testing = { path = "../testing" }
+
+tokio = { workspace = true, features = ["full"] }
+divan.workspace = true

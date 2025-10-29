@@ -10,13 +10,14 @@ authors.workspace = true
 generate = []
 chrono = ["dep:chrono"]
 time = ["dep:time"]
-python = ["dep:pyo3"]
+# python = ["dep:pyo3"]
 
 [dependencies]
+operation-api-fs = { path = "../fs" }
 operation-api-manifests = { path = "../manifests" }
 operation-api-parser = { path = "../parser" }
 
-pyo3 = { workspace = true, optional = true }
+# pyo3 = { workspace = true, optional = true }
 
 dyn-inventory = { workspace = true }
 

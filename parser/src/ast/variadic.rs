@@ -5,7 +5,7 @@ use crate::{
     tokens::{ImplDiagnostic, Paren, Parse, Peek, ToTokens, paren, toks},
 };
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub enum Variant {
     Tuple {
         comments: CommentStream,
@@ -90,6 +90,7 @@ impl ToTokens for Variant {
 
 macro_rules! variadic {
     ($name: ident: [$kw: ty]) => {
+        #[derive(serde::Deserialize, serde::Serialize, Clone)]
         pub struct $name {
             pub kw: $kw,
             pub name: crate::SpannedToken![ident],
@@ -124,13 +125,7 @@ macro_rules! variadic {
                 tt.space();
                 tt.open_block();
 
-                for (idx, item) in self.variants.values.iter().enumerate() {
-                    tt.write(&item.value);
-                    if idx < self.variants.values.len() - 1 {
-                        tt.token(&crate::tokens::Token::Comma);
-                        tt.add_newline();
-                    }
-                }
+                tt.write_comma_separated(self.variants.values.iter().map(|item| &item.value));
 
                 tt.close_block();
             }

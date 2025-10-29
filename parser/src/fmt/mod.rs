@@ -57,7 +57,8 @@ async fn format_file(
         .into_diagnostic()?;
 
     let mut tokens = tokenize_with(&target, &data)?;
-    let ast = crate::ast::AstStream::from_tokens_with(&target, &mut tokens)?;
+    let ast = crate::ast::AstStream::from_tokens_with(&target, &mut tokens)
+        .map_err(|err| err.to_report(None, None, None))?;
     let formatted = crate::fmt::printer::print_ast(&ast, config);
 
     if !dry && data != formatted {

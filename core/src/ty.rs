@@ -88,6 +88,10 @@ pub enum CompoundType {
         #[serde(rename = "ref")]
         to: Ident,
     },
+    Union {
+        lhs: Box<Type>,
+        rhs: Box<Type>,
+    },
     Struct {
         #[serde(rename = "ref")]
         to: Ident,
@@ -142,6 +146,7 @@ impl Display for CompoundType {
                 Self::Enum { to } => format!("{to}"),
                 Self::Struct { to } => format!("{to}"),
                 Self::OneOf { to } => format!("{to}"),
+                Self::Union { .. } => todo!(),
             }
         )
     }
@@ -477,6 +482,7 @@ impl Type {
                             [#inner; #size]
                         )
                     },
+                    CompoundType::Union { .. } => todo!(),
                 }
             },
         }

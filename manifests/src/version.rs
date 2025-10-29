@@ -20,7 +20,7 @@ pub enum VersionError {
     Expected { expect: &'static str, given: String },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub enum Variant {
     Stable,
     Canary,
@@ -51,6 +51,23 @@ impl Display for Variant {
 }
 
 impl Variant {
+    pub fn is_compatible(
+        &self,
+        other: &Self,
+    ) -> bool {
+        match (self, other) {
+            (Variant::Stable, Variant::Stable) | (Variant::Canary, Variant::Canary) => true,
+            (Variant::Stable, Variant::Post(_)) | (Variant::Post(_), Variant::Stable) => true,
+            (Variant::Stable, Variant::Rev(_)) | (Variant::Rev(_), Variant::Stable) => true,
+            (Variant::Rc(a), Variant::Rc(b)) => a == b,
+            (Variant::Pre(a), Variant::Pre(b)) => a == b,
+            (Variant::Alpha(a), Variant::Alpha(b)) => a == b,
+            (Variant::Beta(a), Variant::Beta(b)) => a == b,
+            (Variant::Post(a), Variant::Post(b)) => a == b,
+            (Variant::Rev(a), Variant::Rev(b)) => a == b,
+            _ => false,
+        }
+    }
     pub fn parse(s: &str) -> Result<Self, VersionError> {
         if s.is_empty() || s == "stable" {
             return Ok(Self::Stable);
@@ -97,12 +114,41 @@ impl Variant {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Version {
     maj: usize,
     minor: Option<usize>,
     patch: Option<usize>,
     ext: Variant,
+}
+
+impl Version {
+    pub fn is_compatible(
+        &self,
+        other: Version,
+    ) -> bool {
+        let maj = self.maj == other.maj;
+        if !maj {
+            return false;
+        }
+        let min = if let Some(minor) = self.minor
+            && let Some(other) = other.minor
+        {
+            minor == other
+        } else {
+            true
+        };
+
+        let patch = if let Some(patch) = self.patch
+            && let Some(other) = other.patch
+        {
+            patch == other
+        } else {
+            true
+        };
+
+        maj && min && patch && self.ext.is_compatible(&other.ext)
+    }
 }
 
 impl Version {

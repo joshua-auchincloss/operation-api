@@ -1,0 +1,20 @@
+[package]
+name = "operation-api-env"
+edition = "2024"
+version.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+operation-api-fs = { path = "../fs" }
+operation-api-manifests = { path = "../manifests" }
+
+diesel = { version = "2", features = ["sqlite", "serde_json"] }
+diesel-async = { version = "0.7", features = ["sqlite"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }

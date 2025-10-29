@@ -6,10 +6,10 @@ use crate::{
 
 pub type StructFields = Spanned<Repeated<super::strct::Arg, Token![,]>>;
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct AnonymousStruct {
-    brace: Brace,
-    fields: StructFields,
+    pub(crate) brace: Brace,
+    pub(crate) fields: StructFields,
 }
 
 impl Parse for AnonymousStruct {

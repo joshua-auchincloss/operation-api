@@ -1,11 +1,13 @@
 use std::{collections::BTreeMap, path::PathBuf, sync::LazyLock};
 use validator::{Validate, ValidationError};
 
+use crate::config::NewForNamed;
+
 #[allow(clippy::declare_interior_mutable_const)]
 const PACKAGE_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new("[a-z]([a-z0-9_\\-]*)[a-z0-9]").expect("package re"));
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 #[serde(untagged)]
 pub enum PathOrText {
     Path { path: PathBuf },
@@ -35,7 +37,7 @@ fn validate_name(name: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-#[derive(serde::Deserialize, serde::Serialize, validator::Validate)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, validator::Validate)]
 pub struct Author {
     #[validate(length(min = 1))]
     pub name: String,
@@ -43,40 +45,59 @@ pub struct Author {
     pub email: Option<String>,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, validator::Validate)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, validator::Validate)]
 pub struct PackageMeta {
     #[validate(length(min = 2, max = 128), custom(function = validate_name))]
     pub name: String,
-    pub description: PathOrText,
+    #[serde(default)]
+    pub description: Option<PathOrText>,
     #[validate(custom(function = super::version::Version::valid_for_package))]
     pub version: super::version::Version,
+    #[serde(default)]
     pub authors: Vec<Author>,
+    #[serde(default)]
     #[validate(url)]
     pub homepage: Option<String>,
 }
 
-#[derive(serde::Deserialize, validator::Validate, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, validator::Validate, Default)]
+pub struct FileConfig {
+    #[serde(default)]
+    pub exclude: Vec<String>,
+}
+
+#[derive(serde::Deserialize, validator::Validate, serde::Serialize, Clone)]
 pub struct PackageManifest {
     #[validate(nested)]
     pub package: PackageMeta,
 
+    #[serde(default)]
+    pub files: FileConfig,
+
+    #[serde(default = "BTreeMap::new")]
     pub dependencies: BTreeMap<String, Dependency>,
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+impl NewForNamed for PackageManifest {
+    const NAME: &str = "schema.toml";
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 #[serde(untagged)]
 pub enum Dependency {
     Git {
         git: String,
-        #[serde(rename = "tag")]
-        branch: String,
+        #[serde(rename = "ref")]
+        git_ref: String,
+        rev: String,
     },
     Path {
         path: PathBuf,
     },
     Remote {
         name: String,
-        registry: String,
+        version: crate::version::Version,
+        registry: Option<String>,
     },
 }
 
@@ -97,7 +118,7 @@ mod test {
     ) {
         let p = super::PackageMeta {
             name: name.into(),
-            description: super::PathOrText::Text("".into()),
+            description: None,
             version: Version::parse(version).unwrap(),
             authors: vec![],
             homepage: Some(homepage.into()),
@@ -121,7 +142,7 @@ mod test {
     ) {
         let p = super::PackageMeta {
             name: name.into(),
-            description: super::PathOrText::Text("".into()),
+            description: None,
             version: Version::parse(version).unwrap(),
             authors: vec![],
             homepage: Some(homepage.into()),

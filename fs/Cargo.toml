@@ -1,0 +1,17 @@
+[package]
+name = "operation-api-fs"
+edition = "2024"
+version.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[features]
+fs-test = []
+
+[dependencies]
+tokio = { workspace = true, features = ["fs"] }
+thiserror.workspace = true
+glob.workspace = true
+tracing.workspace = true
+serde = { workspace = true, features = ["derive"] }

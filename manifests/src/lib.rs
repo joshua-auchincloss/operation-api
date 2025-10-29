@@ -1,18 +1,22 @@
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 pub mod config;
-pub mod files;
+pub mod lock;
+pub mod manager;
 pub mod package;
+pub mod registry;
 pub mod rules;
 pub mod version;
 
+use convert_case::{Case, Casing};
+
 pub use crate::config::NewForConfig;
+use crate::{config::NewForNamed, package::PackageManifest};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("{0}")]
+    Fs(#[from] operation_api_fs::Error),
     #[error("[{file}] {err}")]
     WithSource { file: PathBuf, err: Box<Self> },
     #[error("config error: {0}")]
@@ -27,10 +31,8 @@ pub enum Error {
     VersionError(#[from] version::VersionError),
     #[error("{0}")]
     SerError(#[from] toml::ser::Error),
-    #[error("glob error: {0}")]
-    Glob(#[from] glob::GlobError),
-    #[error("pattern error: {0}")]
-    GlobPattern(#[from] glob::PatternError),
+    #[error("{0}")]
+    DeError(#[from] toml::de::Error),
 }
 
 impl Error {
@@ -60,19 +62,20 @@ pub fn init(
     let pkg = package::PackageManifest {
         package: package::PackageMeta {
             name,
-            description: package::PathOrText::Text("".into()),
+            description: None,
             version: version::Version::parse("0.1.0")?,
             authors: vec![],
             homepage: None,
         },
-        dependencies: BTreeMap::default(),
+        dependencies: Default::default(),
+        files: Default::default(),
     };
 
     pkg.validate()?;
 
     let dir = dir.unwrap_or_else(|| PathBuf::from(pkg.package.name.clone()));
 
-    let manifest = dir.join("manifest.toml");
+    let manifest = dir.join(PackageManifest::NAME);
 
     if !dir.exists() {
         std::fs::create_dir(&dir)?;
@@ -90,7 +93,10 @@ pub fn init(
     if !lib.exists() {
         std::fs::write(
             lib,
-            format!("namespace {};\n#![version(1)]\n", pkg.package.name),
+            format!(
+                "#![version(1)]\nnamespace {};\n",
+                pkg.package.name.to_case(Case::Snake)
+            ),
         )?;
     }
 

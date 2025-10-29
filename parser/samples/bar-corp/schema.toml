@@ -1,5 +1,5 @@
 [package]
-name = "abc-corp"
+name = "bar-corp"
 description = "abc foo package"
 version = "0.1.0"
 authors = []

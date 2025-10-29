@@ -6,6 +6,7 @@ use crate::{
     tokens::{self, Brace, LBraceToken, Parse, Peek, ToTokens, brace},
 };
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct Namespace {
     pub kw: SpannedToken![namespace],
     pub name: SpannedToken![ident],
@@ -37,6 +38,7 @@ impl ToTokens for Namespace {
     }
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct SpannedNamespace {
     pub kw: SpannedToken![namespace],
     pub name: SpannedToken![ident],

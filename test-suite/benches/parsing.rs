@@ -4,9 +4,10 @@ use operation_api_parser::{
     tokens::{Parse, tokenize},
 };
 
-const BENCH_STRUCT: &str = include_str!("../samples/bench_struct.pld");
-const BENCH_ENUM: &str = include_str!("../samples/bench_enum.pld");
-const SAMPLE_MSG: &str = include_str!("../samples/abc-corp/schema/foo/message_with_enum.pld");
+const BENCH_STRUCT: &str = include_str!("../../parser/samples/bench_struct.pld");
+const BENCH_ENUM: &str = include_str!("../../parser/samples/bench_enum.pld");
+const SAMPLE_MSG: &str =
+    include_str!("../../parser/samples/abc-corp/schema/foo/message_with_enum.pld");
 
 #[inline(always)]
 fn ast_parse(s: &str) {
@@ -27,27 +28,6 @@ fn ast_parse_struct() {
 fn ast_parse_enum() {
     ast_parse(black_box(BENCH_ENUM))
 }
-
-// #[divan::bench(name = "ast parse nested ast enum", args = [
-//     BENCH_ENUM,
-//     BENCH_STRUCT,
-// ])]
-// fn ast_parse_nested_ast(
-//     bencher: divan::Bencher,
-//     ast: &str,
-// ) {
-//     let ast = format!(
-//         "
-//     namespace abc_corp;
-
-//     #[version(1)]
-//     namespace foo {{
-//         {ast}
-//     }};
-//     "
-//     );
-//     bencher.bench(move || ast_parse(black_box(&ast)));
-// }
 
 #[divan::bench(args = [
     "i32",

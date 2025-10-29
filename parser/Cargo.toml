@@ -6,19 +6,26 @@ license-file.workspace = true
 homepage.workspace = true
 authors.workspace = true
 
-[[bench]]
-name = "parsing"
-harness = false
 
 [[bin]]
 name = "emit"
 
 [features]
-bench = []
+default = []
 emit = ["serde_json"]
 
 [dependencies]
+operation-api-fs = { path = "../fs" }
 operation-api-manifests = { path = "../manifests" }
+
+pathfinding = "4"
+indicatif = "0.18"
+
+
+tracing-indicatif = "0.3"
+console = "0.16"
+
+futures-util = "*"
 
 serde = { workspace = true, features = ["derive"] }
 paste.workspace = true
@@ -28,6 +35,7 @@ tracing.workspace = true
 miette = { workspace = true, features = ["fancy"] }
 
 logos = "*"
+convert_case = "0.8"
 
 inventory = "0.3"
 dyn-inventory = "0.2.0"
@@ -35,17 +43,21 @@ validator = { workspace = true, features = ["derive"] }
 
 serde_json = { workspace = true, optional = true }
 
-tokio = { workspace = true, features = ["fs"] }
+tokio = { workspace = true, features = ["fs", "sync", "time", "rt", "macros"] }
 
-futures-util = "0.3"
 
 glob.workspace = true
 
+# For parallel task execution
+async-channel = "2.3"
+num_cpus = "1.16"
+
 [dev-dependencies]
-criterion = { version = "*", features = ["html_reports"] }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
 operation-api-testing = { path = "../testing" }
+
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
 test-case.workspace = true
 serde_json.workspace = true
-divan.workspace = true
+
 tokio = { workspace = true, features = ["full"] }

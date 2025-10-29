@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use crate::{Peek, tokens::ToTokens};
 
 pub use span::Span;
@@ -6,9 +8,18 @@ pub mod span {
     #[derive(
         Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
     )]
-    pub struct Span {
+    pub struct RawSpan {
         pub start: usize,
         pub end: usize,
+    }
+
+    #[derive(
+        Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
+    )]
+    #[serde(rename_all = "snake_case", tag = "type")]
+    pub enum Span {
+        CallSite,
+        Known(RawSpan),
     }
 
     impl Span {
@@ -16,25 +27,84 @@ pub mod span {
             start: usize,
             end: usize,
         ) -> Self {
-            Self { start, end }
+            Self::Known(RawSpan { start, end })
         }
 
         pub fn len(&self) -> usize {
-            self.end - self.start
+            match self {
+                Self::Known(span) => span.end - span.start,
+                _ => 1,
+            }
         }
 
         pub fn is_empty(&self) -> bool {
             self.len() == 0
         }
+
+        pub fn span(&self) -> &RawSpan {
+            match self {
+                Self::CallSite => &RawSpan { start: 0, end: 0 },
+                Self::Known(known) => known,
+            }
+        }
     }
 }
 
-#[derive(
-    Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
-)]
+pub trait Spans: Sized {
+    fn with_span(
+        self,
+        span: span::Span,
+    ) -> Spanned<Self> {
+        Spanned { span, value: self }
+    }
+}
+
+impl<T: Sized> Spans for T {}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Spanned<T> {
     pub span: span::Span,
     pub value: T,
+}
+
+#[allow(clippy::non_canonical_partial_eq_impl)]
+impl<T: PartialEq<T>> PartialEq<Self> for Spanned<T> {
+    fn eq(
+        &self,
+        other: &Self,
+    ) -> bool {
+        self.value == other.value
+    }
+}
+
+impl<T: Eq> Eq for Spanned<T> {}
+
+#[allow(clippy::non_canonical_partial_ord_impl)]
+impl<T: Ord + PartialEq> PartialOrd for Spanned<T> {
+    fn partial_cmp(
+        &self,
+        other: &Self,
+    ) -> Option<std::cmp::Ordering> {
+        self.value.partial_cmp(&other.value)
+    }
+}
+
+impl<T: Ord + Eq> Ord for Spanned<T> {
+    fn cmp(
+        &self,
+        other: &Self,
+    ) -> std::cmp::Ordering {
+        self.value.cmp(&other.value)
+    }
+}
+
+impl<T: Hash> Hash for Spanned<T> {
+    fn hash<H: std::hash::Hasher>(
+        &self,
+        state: &mut H,
+    ) {
+        self.value.hash(state)
+    }
 }
 
 impl<T> Spanned<T> {
@@ -48,6 +118,14 @@ impl<T> Spanned<T> {
             span: span::Span::new(start, end),
         }
     }
+
+    pub fn call_site(value: T) -> Self {
+        Self {
+            value,
+            span: span::Span::CallSite,
+        }
+    }
+
     pub fn map<U>(
         self,
         f: impl FnOnce(T) -> U,
@@ -64,6 +142,10 @@ impl<T> Spanned<T> {
 
     pub fn is_empty(&self) -> bool {
         self.span.is_empty()
+    }
+
+    pub fn span(&self) -> &span::RawSpan {
+        self.span.span()
     }
 }
 

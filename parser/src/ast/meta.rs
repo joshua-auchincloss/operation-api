@@ -1,16 +1,20 @@
 use crate::{
-    SpannedToken, Token,
+    Token,
     ast::ty::PathOrIdent,
     bail_unchecked,
     defs::Spanned,
-    tokens::{self, Bracket, Paren, Parse, Peek, ToTokens, bracket, paren},
+    tokens::{
+        self, BangToken, Bracket, HashToken, IdentToken, Paren, Parse, Peek, ToTokens, bracket,
+        paren,
+    },
 };
 
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Meta<Value: Parse> {
-    pub open: SpannedToken![#],
-    pub inner: Option<Spanned<Token![!]>>,
+    pub open: Spanned<HashToken>,
+    pub inner: Option<Spanned<BangToken>>,
     pub bracket: Bracket,
-    pub name: SpannedToken![ident],
+    pub name: Spanned<IdentToken>,
     pub paren: Paren,
     pub value: Spanned<Value>,
 }
@@ -82,13 +86,59 @@ pub type IntMeta = Meta<Token![number]>;
 pub type StrMeta = Meta<Token![string]>;
 pub type IdentMeta = Meta<PathOrIdent>;
 
-pub enum ItemMetaItem {
-    Version(Spanned<IntMeta>),
-    Error(Spanned<IdentMeta>),
+pub type VersionMeta = Spanned<IntMeta>;
+pub type ErrorMeta = Spanned<IdentMeta>;
+
+// Helper extensions for VersionMeta to eliminate deeply nested field access
+impl VersionMeta {
+    /// Get the version number directly
+    pub fn version_value(&self) -> i32 {
+        *self.value.value.borrow_i32()
+    }
+
+    /// Get the version as a u32 with span information
+    pub fn version_spanned(&self) -> Spanned<u32> {
+        let val = *self.value.value.borrow_i32();
+        Spanned::new(self.span().start, self.span().end, val as u32)
+    }
 }
 
+// Helper extensions for ErrorMeta to eliminate deeply nested field access
+impl ErrorMeta {
+    /// Get the error name directly
+    pub fn error_name(&self) -> &PathOrIdent {
+        &self.value.value.value
+    }
+
+    /// Get the error name as a cloned PathOrIdent with span
+    pub fn error_name_spanned(&self) -> Spanned<PathOrIdent> {
+        let name = self.error_name().clone();
+        Spanned::new(self.span().start, self.span().end, name)
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "meta_type", rename_all = "snake_case")]
+pub enum ItemMetaItem {
+    Version(VersionMeta),
+    Error(ErrorMeta),
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct ItemMeta {
     pub meta: Vec<ItemMetaItem>,
+}
+
+impl Default for ItemMeta {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ItemMeta {
+    pub fn new() -> Self {
+        Self { meta: vec![] }
+    }
 }
 
 impl Parse for ItemMeta {
@@ -117,10 +167,10 @@ impl Parse for ItemMeta {
             } else if stream.peek::<IdentMeta>() {
                 let this: Spanned<IdentMeta> = stream.parse()?;
                 match this.name.borrow_string().as_ref() {
-                    "error" => meta.push(ItemMetaItem::Error(this)),
+                    "err" => meta.push(ItemMetaItem::Error(this)),
                     unknown => {
                         return Err(crate::LexingError::unknown_meta(
-                            vec!["error"],
+                            vec!["err"],
                             unknown.into(),
                             &this.name.span,
                         ));
@@ -196,7 +246,7 @@ mod test {
     ) {
         let mut tt = tokenize(src).expect("Should parse");
         let meta: Spanned<ItemMeta> = tt.parse().unwrap();
-        let version = match meta.meta.get(0).unwrap() {
+        let version = match meta.meta.first().unwrap() {
             ItemMetaItem::Version(ver) => ver,
             #[allow(unreachable_patterns)]
             _ => panic!("not version"),
@@ -204,16 +254,17 @@ mod test {
         assert_eq!(*version.value.value.borrow_i32(), expect_version);
     }
 
-    #[test_case::test_case("#[error(MyError)]", "MyError"; "error from outer")]
-    #[test_case::test_case("#![error(MyError)]", "MyError"; "error from inner")]
+    #[test_case::test_case("#[err(MyError)]", "MyError"; "error from outer")]
+    #[test_case::test_case("#![err(MyError)]", "MyError"; "error from inner")]
     fn test_err_parse(
         src: &str,
         expect_error: &str,
     ) {
         let mut tt = tokenize(src).expect("Should parse");
+        println!("{tt:#?}");
         let meta: Spanned<ItemMeta> = tt.parse().unwrap();
         assert!(!meta.meta.is_empty(), "meta.meta is empty!");
-        let error = match meta.meta.get(0).unwrap() {
+        let error = match meta.meta.first().unwrap() {
             ItemMetaItem::Error(err) => err,
             #[allow(unreachable_patterns)]
             _ => panic!("not error"),

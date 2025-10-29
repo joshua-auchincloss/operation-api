@@ -5,7 +5,7 @@ use crate::{
     tokens::{Bracket, ImplDiagnostic, Parse, Peek, ToTokens, Token, bracket, toks},
 };
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum Array {
     Unsized {
@@ -17,6 +17,19 @@ pub enum Array {
         bracket: Bracket,
         size: SpannedToken![number],
     },
+}
+
+impl Array {
+    pub fn type_name(&self) -> String {
+        match self {
+            Self::Unsized { ty, .. } => {
+                format!("{}[]", ty.type_name())
+            },
+            Self::Sized { ty, size, .. } => {
+                format!("{}[{}]", ty.type_name(), size.borrow_i32())
+            },
+        }
+    }
 }
 
 impl ImplDiagnostic for Array {

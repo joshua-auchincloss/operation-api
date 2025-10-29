@@ -3,7 +3,7 @@ use crate::{
     tokens::{self, ImplDiagnostic},
 };
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub enum CommentAst {
     SingleLine(Spanned<tokens::CommentSingleLineToken>),
     MultiLine(Spanned<tokens::CommentMultiLineToken>),
@@ -69,7 +69,7 @@ impl tokens::Parse for CommentAst {
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct CommentStream {
     pub comments: Vec<Spanned<CommentAst>>,
 }
@@ -82,7 +82,21 @@ impl tokens::Parse for CommentStream {
     }
 }
 
+impl Default for CommentStream {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CommentStream {
+    pub fn new() -> Self {
+        Self { comments: vec![] }
+    }
+
+    pub fn new_from(comments: Vec<Spanned<CommentAst>>) -> Self {
+        Self { comments }
+    }
+
     pub fn comments(&self) -> impl Iterator<Item = &String> {
         self.comments.iter().map(|it| {
             match &it.value {

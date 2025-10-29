@@ -1,25 +1,22 @@
 namespace foo;
 
 use bar_corp::baz;
-use bar_corp::baz::BazOrString;
+
+use bar_corp::baz::{BazOrString};
 
 // single line comment on type
-type Abc = oneof str | null;
+type Abc = oneof str | i64;
 
-/*
-	some multiline comment.
-*/
+/* some multiline comment. */
 struct TestComplexMessage {
 	// Field comment
-	a:  i32,
-	/*
-		Multiline field comment
-	*/
-	b:  i64,
-	c:  str,
+	a: i32,
+	/* Multiline field comment */
+	b: i64,
+	c: str,
 	d?: bool,
 	e?: str,
-	f:  BazOrString,
-	g:  Abc,
-	h:  baz::Baz,
+	f: BazOrString,
+	g: Abc,
+	h: baz::Baz
 };

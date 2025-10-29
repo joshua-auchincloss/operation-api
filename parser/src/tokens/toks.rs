@@ -1,6 +1,6 @@
 use crate::{
     defs::{Spanned, span::Span},
-    fmt::printer::Printer,
+    fmt::{FormatConfig, printer::Printer},
     tokens::{AstResult, ImplDiagnostic, error::LexingError},
 };
 use logos::Logos;
@@ -13,6 +13,12 @@ pub trait ToTokens {
         &self,
         tt: &mut Printer,
     );
+
+    fn display(&self) -> String {
+        let mut printer = Printer::new(&FormatConfig::default());
+        self.write(&mut printer);
+        printer.buf
+    }
 }
 
 macro_rules! tokens {
@@ -238,7 +244,7 @@ declare_tokens! {
     #[derive(PartialOrd, Ord, Hash, Eq)]
     Ident(String),
 
-    #[regex(r"(schema|[A-Za-z_][A-Za-z0-9_]*)::[A-Za-z_][A-Za-z0-9_]*(?::[A-Za-z_][A-Za-z0-9_]*)*", parse_path)]
+    #[regex(r"(schema|[A-Za-z_][A-Za-z0-9_]*)::[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*", parse_path)]
     #[regfmt("path")]
     Path(PathInner),
 

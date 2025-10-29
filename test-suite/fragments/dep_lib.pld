@@ -1,0 +1,5 @@
+namespace dep;
+
+struct Data {
+	value: str
+};

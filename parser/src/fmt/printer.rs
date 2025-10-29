@@ -78,6 +78,42 @@ impl Printer {
     ) {
         w.write(self);
     }
+
+    pub fn write_comma_separated<T, I>(
+        &mut self,
+        items: I,
+    ) where
+        T: ToTokens,
+        I: IntoIterator<Item = T>,
+        I::IntoIter: ExactSizeIterator, {
+        let iter = items.into_iter();
+        let len = iter.len();
+        for (idx, item) in iter.enumerate() {
+            self.write(&item);
+            if idx < len - 1 {
+                self.token(&Token::Comma);
+                self.add_newline();
+            }
+        }
+    }
+
+    pub fn write_comma_separated_inline<T, I>(
+        &mut self,
+        items: I,
+    ) where
+        T: ToTokens,
+        I: IntoIterator<Item = T>,
+        I::IntoIter: ExactSizeIterator, {
+        let iter = items.into_iter();
+        let len = iter.len();
+        for (idx, item) in iter.enumerate() {
+            self.write(&item);
+            if idx < len - 1 {
+                self.token(&Token::Comma);
+                self.space();
+            }
+        }
+    }
 }
 
 pub fn print_tokens(

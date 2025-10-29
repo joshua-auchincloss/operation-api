@@ -1,6 +1,6 @@
 use crate::{
     Token,
-    tokens::{Brace, ToTokens, Token},
+    tokens::{Brace, EqToken, IdentToken, ToTokens},
 };
 
 use crate::{
@@ -10,8 +10,9 @@ use crate::{
     tokens::{ImplDiagnostic, Parse, Peek, Repeated, brace},
 };
 
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct EnumValue<Value: Parse> {
-    pub eq: SpannedToken![=],
+    pub eq: Spanned<EqToken>,
     pub value: Spanned<Value>,
 }
 
@@ -43,9 +44,10 @@ where
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct EnumVariant<Value: Parse> {
     pub comments: Spanned<CommentStream>,
-    pub name: SpannedToken![ident],
+    pub name: Spanned<IdentToken>,
     pub value: Option<EnumValue<Value>>,
 }
 
@@ -90,11 +92,23 @@ where
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct TypedEnum<Value: Parse + Peek> {
     pub kw: SpannedToken![enum],
     pub name: SpannedToken![ident],
     pub brace: Brace,
     pub variants: Spanned<Repeated<EnumVariant<Value>, Token![,]>>,
+}
+
+impl<Value: Parse + Peek + ImplDiagnostic + Clone> Clone for TypedEnum<Value> {
+    fn clone(&self) -> Self {
+        Self {
+            kw: self.kw.clone(),
+            name: self.name.clone(),
+            brace: self.brace.clone(),
+            variants: self.variants.clone(),
+        }
+    }
 }
 
 impl<Value: Parse + Peek + ImplDiagnostic> Parse for TypedEnum<Value> {
@@ -109,9 +123,19 @@ impl<Value: Parse + Peek + ImplDiagnostic> Parse for TypedEnum<Value> {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum Enum {
     Int(TypedEnum<Token![number]>),
     Str(TypedEnum<Token![string]>),
+}
+
+impl Clone for Enum {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Int(i) => Self::Int(i.clone()),
+            Self::Str(s) => Self::Str(s.clone()),
+        }
+    }
 }
 
 impl Peek for Enum {
@@ -154,13 +178,12 @@ impl ToTokens for Enum {
                 tt.write(&i.name);
                 tt.space();
                 tt.open_block();
-                for (idx, item) in i.variants.values.iter().enumerate() {
-                    tt.write(&item.value);
-                    if idx < i.variants.values.len() - 1 {
-                        tt.token(&Token::Comma);
-                        tt.add_newline();
-                    }
-                }
+                tt.write_comma_separated(
+                    i.variants
+                        .values
+                        .iter()
+                        .map(|item| &item.value),
+                );
                 tt.close_block();
             },
             Self::Str(s) => {
@@ -169,15 +192,23 @@ impl ToTokens for Enum {
                 tt.write(&s.name);
                 tt.space();
                 tt.open_block();
-                for (idx, item) in s.variants.values.iter().enumerate() {
-                    tt.write(&item.value);
-                    if idx < s.variants.values.len() - 1 {
-                        tt.token(&Token::Comma);
-                        tt.add_newline();
-                    }
-                }
+                tt.write_comma_separated(
+                    s.variants
+                        .values
+                        .iter()
+                        .map(|item| &item.value),
+                );
                 tt.close_block();
             },
+        }
+    }
+}
+
+impl Enum {
+    pub fn name(&self) -> &SpannedToken![ident] {
+        match self {
+            Self::Int(i) => &i.name,
+            Self::Str(s) => &s.name,
         }
     }
 }

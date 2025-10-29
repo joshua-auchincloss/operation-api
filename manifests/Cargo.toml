@@ -7,17 +7,21 @@ homepage.workspace = true
 authors.workspace = true
 
 [dependencies]
+operation-api-fs = { path = "../fs" }
+
 serde = { workspace = true, features = ["derive"] }
 config = { workspace = true, features = ["toml"] }
 thiserror.workspace = true
 validator = { workspace = true, features = ["derive"] }
 semver = "1"
+convert_case.workspace = true
 regex = "*"
 serde_json.workspace = true
 prettyprint = "*"
 toml = { workspace = true, features = ["serde"] }
 glob.workspace = true
 tracing.workspace = true
+
 
 [dev-dependencies]
 test-case.workspace = true

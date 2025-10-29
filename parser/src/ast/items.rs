@@ -1,23 +1,100 @@
 use crate::{
-    SpannedToken, Token,
+    Token,
     ast::{self, comment::CommentStream, meta::ItemMeta},
     bail_unchecked,
-    defs::Spanned,
-    tokens::{ImplDiagnostic, LexingError, Parse, Peek, ToTokens, straight_through},
+    defs::{Span, Spanned},
+    tokens::{ImplDiagnostic, LexingError, Parse, Peek, SemiToken, ToTokens, straight_through},
 };
 
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
+pub enum CommentOrMeta {
+    Comments(CommentStream),
+    Meta(Spanned<ItemMeta>),
+}
+
+impl Parse for CommentOrMeta {
+    #[tracing::instrument(skip(stream))]
+    fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, LexingError> {
+        Ok(if stream.peek::<Token![#]>() {
+            tracing::debug!("parse meta");
+            Self::Meta(stream.parse()?)
+        } else {
+            tracing::debug!("parse comments");
+            Self::Comments(CommentStream::parse(stream)?)
+        })
+    }
+}
+
+// ok this is kind of dangerous in the sense that if we do ANYTHING but this, we can fall into infinite recursion errors.
+// however, we are at least guaranteed a correct parse.
+impl Peek for CommentOrMeta {
+    fn peek(stream: &crate::tokens::TokenStream) -> bool {
+        let mut fork = stream.fork();
+
+        if stream.peek::<Token![#]>() {
+            let meta: Spanned<ItemMeta> = bail_unchecked!(fork.parse(); false);
+            tracing::trace!(
+                "CommentOrMeta::peek parsed meta with {} items",
+                meta.value.meta.len()
+            );
+            !meta.value.meta.is_empty()
+        } else {
+            let strm = bail_unchecked!(CommentStream::parse(&mut fork); false);
+            !strm.comments.is_empty()
+        }
+    }
+}
+
+impl ToTokens for CommentOrMeta {
+    fn write(
+        &self,
+        tt: &mut crate::fmt::Printer,
+    ) {
+        match self {
+            Self::Comments(c) => c.write(tt),
+            Self::Meta(m) => m.write(tt),
+        }
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Item<T: Parse> {
-    pub comments: CommentStream,
-    pub meta: Spanned<ItemMeta>,
+    pub meta: Vec<Spanned<CommentOrMeta>>,
     pub def: Spanned<T>,
-    pub end: SpannedToken![;],
+    // ;
+    pub end: Spanned<SemiToken>,
+}
+
+impl<T: Parse> Item<T> {
+    pub fn def_span(&self) -> &Span {
+        &self.def.span
+    }
+
+    pub fn meta(&self) -> Vec<&Spanned<ItemMeta>> {
+        let mut meta = vec![];
+        for it in &self.meta {
+            if let CommentOrMeta::Meta(m) = &it.value {
+                meta.push(m)
+            }
+        }
+        meta
+    }
+
+    pub fn comments(&self) -> Vec<&CommentStream> {
+        let mut cmt = vec![];
+        for it in &self.meta {
+            if let CommentOrMeta::Comments(m) = &it.value {
+                cmt.push(m)
+            }
+        }
+        cmt
+    }
 }
 
 impl<T: Parse> Parse for Item<T> {
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
         Ok(Self {
-            comments: CommentStream::parse(stream)?,
-            meta: stream.parse()?,
+            meta: Vec::parse(stream)?,
             def: stream.parse()?,
             end: stream.parse()?,
         })
@@ -26,7 +103,7 @@ impl<T: Parse> Parse for Item<T> {
 
 straight_through! {
     Item<T> {
-        comments, meta, def, end
+        meta, def, end
     }
 }
 
@@ -40,6 +117,24 @@ pub type TypeDef = Item<super::ty_def::NamedType>;
 pub type ErrorDef = Item<super::err::ErrorType>;
 pub type OperationDef = Item<super::op::Operation>;
 
+impl UseDef {
+    /// get the root identifier of the use statement
+    pub fn root_ident(&self) -> &str {
+        self.def.path.value.root_ident()
+    }
+
+    /// check if this is a single-segment import
+    pub fn is_single_segment(&self) -> bool {
+        self.def.path.value.is_single_segment()
+    }
+
+    /// check if this has nested items
+    pub fn has_nested_items(&self) -> bool {
+        self.def.path.value.has_nested_items()
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
 pub enum Items {
     Use(UseDef),
     OneOf(OneOfDef),
@@ -53,69 +148,62 @@ pub enum Items {
 }
 
 impl Parse for Items {
+    #[tracing::instrument(skip(stream))]
     fn parse(stream: &mut crate::tokens::TokenStream) -> Result<Self, crate::tokens::LexingError> {
-        let comments = CommentStream::parse(stream)?;
-        let meta = stream.parse()?;
+        tracing::trace!("try parse meta");
+        let meta = Vec::parse(stream)?;
+        tracing::trace!("done parsing meta");
 
         Ok(if stream.peek::<ast::namespace::Namespace>() {
             Self::Namespace(NamespaceDef {
-                comments,
                 meta,
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
         } else if stream.peek::<ast::import::Use>() {
             Self::Use(UseDef {
-                comments,
                 meta,
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
         } else if stream.peek::<ast::one_of::OneOf>() {
             Self::OneOf(OneOfDef {
-                comments,
                 meta,
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
         } else if stream.peek::<ast::err::ErrorType>() {
             Self::Error(ErrorDef {
-                comments,
                 meta,
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
         } else if stream.peek::<ast::enm::Enum>() {
             Self::Enum(EnumDef {
-                comments,
                 meta,
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
         } else if stream.peek::<ast::strct::Struct>() {
             Self::Struct(StructDef {
-                comments,
                 meta,
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
         } else if stream.peek::<ast::ty_def::NamedType>() {
             Self::Type(TypeDef {
-                comments,
                 meta,
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
         } else if stream.peek::<ast::op::Operation>() {
             Self::Operation(OperationDef {
-                comments,
                 meta,
                 def: stream.parse()?,
                 end: stream.parse()?,
             })
         } else if stream.peek::<ast::namespace::SpannedNamespace>() {
             Self::SpannedNamespace(SpannedNamespaceDef {
-                comments,
                 meta,
                 def: stream.parse()?,
                 end: stream.parse()?,
@@ -142,20 +230,27 @@ impl Parse for Items {
 
 impl Peek for Items {
     fn peek(stream: &crate::tokens::TokenStream) -> bool {
+        tracing::trace!("Items::peek called");
         let mut fork = stream.fork();
-        let _ = CommentStream::parse(&mut fork).ok();
-        let _: Spanned<ItemMeta> = bail_unchecked!(fork.parse(); false);
+        let meta_result = Vec::<Spanned<CommentOrMeta>>::parse(&mut fork);
+        tracing::trace!(
+            "Items::peek meta parse result: {:?}",
+            meta_result.as_ref().map(|v| v.len())
+        );
+
         if let Some(token) = fork.next() {
+            tracing::trace!("Items::peek next token: {:?}", token);
             let token = &token.value;
             <Token![namespace]>::is(token)
-                | <Token![use]>::is(token)
-                | <Token![oneof]>::is(token)
-                | <Token![enum]>::is(token)
-                | <Token![struct]>::is(token)
-                | <Token![error]>::is(token)
-                | <Token![type]>::is(token)
-                | <Token![operation]>::is(token)
+                || <Token![use]>::is(token)
+                || <Token![oneof]>::is(token)
+                || <Token![enum]>::is(token)
+                || <Token![struct]>::is(token)
+                || <Token![error]>::is(token)
+                || <Token![type]>::is(token)
+                || <Token![operation]>::is(token)
         } else {
+            tracing::trace!("Items::peek no token found, returning false");
             false
         }
     }
@@ -234,6 +329,14 @@ namespace test;
 
 operation foo() -> i32!;
 ", 2; "parses 0 arg operation with result type"
+    )]
+    #[test_case::test_case(
+        "
+namespace test;
+
+#[err(MyError)]
+operation foo() -> i32!;
+", 2; "parses 0 arg operation with result type and meta"
     )]
     #[test_case::test_case(
         "

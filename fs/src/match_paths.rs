@@ -1,8 +1,8 @@
 use std::{collections::BTreeSet, path::PathBuf};
 
 pub fn match_paths(
-    include: &Vec<String>,
-    exclude: &Vec<String>,
+    include: &[String],
+    exclude: &[String],
 ) -> crate::Result<Vec<PathBuf>> {
     let mut found = BTreeSet::new();
     for include in include {
@@ -24,7 +24,7 @@ pub fn match_paths(
                 .any(|re| re.matches_path(it));
 
             if remove {
-                tracing::info!(
+                tracing::trace!(
                     "removing '{}' from targets due to exclusion rule",
                     it.display()
                 )
@@ -33,7 +33,7 @@ pub fn match_paths(
             !remove
         })
         .inspect(|it| {
-            tracing::info!("including '{}' in targets", it.display());
+            tracing::trace!("including '{}' in targets", it.display());
         })
         .collect();
 

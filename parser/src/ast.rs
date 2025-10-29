@@ -16,7 +16,7 @@ pub mod ty_def;
 pub mod union;
 pub mod variadic;
 
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use miette::IntoDiagnostic;
 
@@ -27,10 +27,11 @@ use crate::{
     tokens::{AstResult, TokenStream, tokenize},
 };
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct AstStream {
-    module_comments: CommentStream,
-    module_meta: Spanned<meta::ItemMeta>,
-    nodes: Vec<Spanned<items::Items>>,
+    pub module_comments: CommentStream,
+    pub module_meta: Spanned<meta::ItemMeta>,
+    pub nodes: Vec<Spanned<items::Items>>,
 }
 
 impl crate::Parse for AstStream {
@@ -62,10 +63,13 @@ impl AstStream {
     pub fn from_tokens_with(
         path: impl AsRef<Path>,
         tt: &mut TokenStream,
-    ) -> miette::Result<Self> {
+    ) -> crate::Result<Self> {
         Self::from_tokens(tt).map_err(|lex| {
             let crate_err: crate::Error = lex.into();
-            crate_err.to_report_with(path.as_ref(), &tt.source, None)
+            crate_err.with_source(
+                path.as_ref().to_path_buf(),
+                Arc::new(String::from(tt.source())),
+            )
         })
     }
 
@@ -134,7 +138,7 @@ impl crate::tokens::ToTokens for AstStream {
 
 #[cfg(test)]
 mod test {
-    use crate::{fmt::FormatConfig, tokens::ToTokens};
+    use crate::fmt::FormatConfig;
 
     use super::*;
 

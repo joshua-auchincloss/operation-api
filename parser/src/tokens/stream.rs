@@ -159,6 +159,7 @@ impl TokenStream {
         &self,
         span: &Span,
     ) -> &str {
+        let span = span.span();
         &self.source[span.start..span.end]
     }
 
@@ -183,7 +184,7 @@ impl TokenStream {
 
     pub fn current_span(&self) -> &Span {
         self.span_of(self.cursor)
-            .unwrap_or(&Span { start: 0, end: 0 })
+            .unwrap_or(&Span::CallSite)
     }
 
     pub fn last_span(&self) -> Option<&Span> {
@@ -307,7 +308,7 @@ fn parse_vs_token_contract() {
     );
 
     let mut iter_count = 0usize;
-    while let Some(_) = tt.next() {
+    for _ in tt {
         iter_count += 1;
     }
 
@@ -349,12 +350,16 @@ pub fn tokenize_with(
 macro_rules! paired {
     ($tok: ident) => {
         paste::paste! {
-            #[derive(serde::Serialize, serde::Deserialize, Debug)]
+            #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
             pub struct $tok(Spanned<()>);
 
             impl $tok {
                 pub fn new(span: Spanned<()>) -> Self {
                     Self(span)
+                }
+
+                pub fn call_site() -> Self {
+                    Self(Spanned::call_site(()))
                 }
 
                 pub fn span(&self) -> &Span {
@@ -459,8 +464,8 @@ impl MutTokenStream {
         token: Token,
     ) {
         let last = self.last_span();
-        let start = last.end.saturating_sub(1);
-        self.push(Spanned::new(start, last.end, token));
+        let start = last.span().end.saturating_sub(1);
+        self.push(Spanned::new(start, last.span().end, token));
     }
 
     pub fn write_with_span(
@@ -481,22 +486,22 @@ impl MutTokenStream {
         }
         let len = self.tokens.len();
         if range.start < range.end && range.start < len {
-            let start_span = self.tokens[range.start].span.start;
+            let start_span = self.tokens[range.start].span.span().start;
             let end_span = if range.end <= len {
-                self.tokens[range.end - 1].span.end
+                self.tokens[range.end - 1].span.span().end
             } else {
-                self.tokens[len - 1].span.end
+                self.tokens[len - 1].span.span().end
             };
             return Span::new(start_span, end_span);
         }
 
         if range.start < len {
-            let anchor = self.tokens[range.start].span.start;
+            let anchor = self.tokens[range.start].span.span().start;
             return Span::new(anchor, anchor);
         }
 
         let last = &self.tokens[len - 1];
-        Span::new(last.span.end, last.span.end)
+        Span::new(last.span.span().end, last.span.span().end)
     }
 
     pub fn splice_with(
@@ -505,10 +510,11 @@ impl MutTokenStream {
         with: Vec<Token>,
     ) {
         let spans = self.span_of_range(&range);
+        let rng = spans.span();
         self.tokens.splice(
             range,
             with.into_iter()
-                .map(|it| Spanned::new(spans.start, spans.end, it)),
+                .map(|it| Spanned::new(rng.start, rng.end, it)),
         );
     }
 
@@ -627,7 +633,7 @@ mod test {
         .unwrap_err();
         let as_crate = crate::Error::from(inner);
         let p = Path::new("test.pld");
-        let diag = format!("{:?}", as_crate.to_report_with(&p, src, None));
+        let diag = format!("{:?}", as_crate.to_report_with(p, src, None));
         eprintln!("{diag}");
         for e in expect {
             assert!(diag.contains(e), "'{}' is in outputted diagnostics", e)

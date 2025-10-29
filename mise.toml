@@ -6,6 +6,8 @@ prep-docs = [
     "cargo run -p operation-api-parser --bin emit --features emit",
     "cargo run -p operation-api-cli --bin emit --features emit",
     "python scripts/syntax.py",
+    "python -m docs.diagrams.compilation",
+    "python -m docs.diagrams.handlers",
 ]
 docs = "mdbook serve docs"
 gen-a = [
@@ -16,4 +18,5 @@ config-sync = "sed 's/samples/..\\/samples/g' examples/gen-a/op-gen.toml > sampl
 clean-snap = "rm -rf ./**/tests/snapshots/*.snap"
 
 [tools]
+node = "latest"
 prek = "latest"

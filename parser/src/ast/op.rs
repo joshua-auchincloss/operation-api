@@ -2,9 +2,10 @@ use crate::{
     Parse, Peek, SpannedToken, Token,
     ast::ty::Type,
     defs::Spanned,
-    tokens::{Paren, Repeated, ToTokens, Token, paren},
+    tokens::{Paren, Repeated, ToTokens, paren},
 };
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct Operation {
     pub kw: SpannedToken![operation],
     pub name: SpannedToken![ident],
@@ -45,13 +46,12 @@ impl ToTokens for Operation {
 
         self.paren.write_with(tt, |tt| {
             if let Some(args) = &self.args {
-                for (idx, item) in args.value.values.iter().enumerate() {
-                    tt.write(&item.value);
-                    if idx < args.value.values.len() - 1 {
-                        tt.token(&Token::Comma);
-                        tt.space();
-                    }
-                }
+                tt.write_comma_separated_inline(
+                    args.value
+                        .values
+                        .iter()
+                        .map(|item| &item.value),
+                );
             }
         });
 

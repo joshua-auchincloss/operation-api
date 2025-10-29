@@ -1,0 +1,5 @@
+namespace pkg;
+
+enum Status {
+	Active = 5
+};

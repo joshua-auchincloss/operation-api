@@ -74,6 +74,9 @@ pub enum Error {
     Manifests(#[from] operation_api_manifests::Error),
 
     #[error("{0}")]
+    Fs(#[from] operation_api_fs::Error),
+
+    #[error("{0}")]
     Parsing(#[from] operation_api_parser::Error),
 
     #[error("{0}")]
@@ -139,9 +142,9 @@ mod test {
         Struct, Type, Typed, VariantKind, Version, map, ty,
     };
 
-    const BASIC_STRUCT: &'static str = include_str!("../../samples/basic-struct.toml");
-    const BASIC_OP: &'static str = include_str!("../../samples/basic-op.toml");
-    const BASIC_ENUM: &'static str = include_str!("../../samples/basic-enum.toml");
+    const BASIC_STRUCT: &str = include_str!("../../samples/basic-struct.toml");
+    const BASIC_OP: &str = include_str!("../../samples/basic-op.toml");
+    const BASIC_ENUM: &str = include_str!("../../samples/basic-enum.toml");
 
     fn empty_meta() -> Meta<Option<crate::Ident>, Option<crate::Ident>, Option<Version>> {
         Meta::builder()
@@ -154,7 +157,7 @@ mod test {
     #[test]
     fn test_de_basic_struct() {
         let namespace = crate::Ident::new("abc.corp.namespace");
-        let s: Definitions = toml::from_str(&BASIC_STRUCT).unwrap();
+        let s: Definitions = toml::from_str(BASIC_STRUCT).unwrap();
         let s2 = Definitions::StructV1(Struct {
             meta: Meta {
                 name: "some_struct".into(),
@@ -178,7 +181,7 @@ mod test {
 
     #[test]
     fn test_de_basic_op() {
-        let s: Definitions = toml::from_str(&BASIC_OP).unwrap();
+        let s: Definitions = toml::from_str(BASIC_OP).unwrap();
         let expect = Definitions::OperationV1(
             Operation::builder()
             .meta(Meta::builder().name("add".into())
@@ -199,7 +202,7 @@ mod test {
 
     #[test]
     fn test_de_basic_enum() {
-        let s: Definitions = toml::from_str(&BASIC_ENUM).unwrap();
+        let s: Definitions = toml::from_str(BASIC_ENUM).unwrap();
         let expect = Definitions::EnumV1(
             Enum::builder()
                 .meta(

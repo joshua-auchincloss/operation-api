@@ -9,3 +9,7 @@
 *.dylib
 /python-sdk
 notes.md
+/specs
+*.bak
+*.log
+*.tmp

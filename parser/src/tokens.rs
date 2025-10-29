@@ -39,7 +39,7 @@ mod tests {
     fn samples_lex_without_error_tokens() {
         for src in SAMPLE_FILES.iter() {
             let ts = tokenize(src).unwrap_or_else(|e| panic!("lex errors in sample {src}: {e:#?}"));
-            assert!(ts.all().len() > 0);
+            assert!(!ts.all().is_empty());
         }
     }
 
@@ -180,7 +180,10 @@ mod tests {
     ) {
         let ts = tokenize(src).unwrap();
         let err = expect(ts);
+        let expect_span = expect_span.span();
+
         if let LexingError::Spanned { span, source } = err {
+            let span = span.span();
             assert_eq!(format!("{source}"), err_message);
 
             assert_eq!(
@@ -199,7 +202,7 @@ mod tests {
         // line
         // comments
         ",
-        serde_json::json!({"span":{"end":65,"start":0},"value":[{"span":{"end":11,"start":0},"value":["multiple"]},{"span":{"end":29,"start":11},"value":["single"]},{"span":{"end":45,"start":29},"value":["line"]},{"span":{"end":65,"start":45},"value":["comments"]}]}),
+        serde_json::json!({"span":{"end":65,"start":0,"type":"known"},"value":[{"span":{"end":11,"start":0,"type":"known"},"value":["multiple"]},{"span":{"end":29,"start":11,"type":"known"},"value":["single"]},{"span":{"end":45,"start":29,"type":"known"},"value":["line"]},{"span":{"end":65,"start":45,"type":"known"},"value":["comments"]}]}),
         PhantomData::<toks::CommentSingleLineToken>;
         "parses single line comments over new lines"
     )]
@@ -209,7 +212,7 @@ mod tests {
         */ /*
             next comment value
         */",
-        serde_json::json!({"span":{"end":94,"start":0},"value":[{"span":{"end":49,"start":0},"value":["the inner comment value"]},{"span":{"end":94,"start":50},"value":["next comment value"]}]}),
+        serde_json::json!({"span":{"end":94,"start":0,"type":"known"},"value":[{"span":{"end":49,"start":0,"type":"known"},"value":["the inner comment value"]},{"span":{"end":94,"start":50,"type":"known"},"value":["next comment value"]}]}),
         PhantomData::<toks::CommentMultiLineToken>;
         "parses comments over new lines"
     )]
@@ -238,7 +241,7 @@ mod tests {
             b,
             c
         ",
-        serde_json::json!({"span":{"end":44,"start":0},"value":{"values":[{"sep":{"span":{"end":15,"start":14},"value":null},"value":{"span":{"end":14,"start":0},"value":["a"]}},{"sep":{"span":{"end":30,"start":29},"value":null},"value":{"span":{"end":29,"start":15},"value":["b"]}},{"sep":null,"value":{"span":{"end":44,"start":30},"value":["c"]}}]}}),
+        serde_json::json!({"span":{"end":44,"start":0,"type":"known"},"value":{"values":[{"sep":{"span":{"end":15,"start":14,"type":"known"},"value":null},"value":{"span":{"end":14,"start":0,"type":"known"},"value":["a"]}},{"sep":{"span":{"end":30,"start":29,"type":"known"},"value":null},"value":{"span":{"end":29,"start":15,"type":"known"},"value":["b"]}},{"sep":null,"value":{"span":{"end":44,"start":30,"type":"known"},"value":["c"]}}]}}),
         PhantomData::<(toks::IdentToken, toks::CommaToken)>;
         "repeated idents with new lines"
     )]
